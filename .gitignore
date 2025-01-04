@@ -1,0 +1,31 @@
+# Python-related files
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+*.sqlite3
+
+# Virtual environment
+.venv/
+env/
+venv/
+
+# PyCharm-related files
+.idea/
+
+# Logs and debugging files
+*.log
+
+# AWS credentials and sensitive files
+.env
+
+# Byte-compiled / optimized / compiled code
+*.py[cod]
+*.so
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Operating system files
+.DS_Store
+Thumbs.db
