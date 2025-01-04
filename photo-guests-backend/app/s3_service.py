@@ -16,12 +16,12 @@ s3_client = boto3.client(
 BUCKET_NAME = "photo-guests-events"
 
 
-def create_event_folder(event_date, event_name):
+def create_event_folder(event_date, event_id):
     """
     Create the S3 folder structure under the bucket named 'photo-guests-events'.
-    Folder structure: <event_date>/<event_name>/<subfolders>.
+    Folder structure: <event_date>/<event_id>/<subfolders>.
     """
-    folder_name = f"{event_date}/{event_name}/"
+    folder_name = f"{event_date}/{event_id}/"
 
     # Create subfolders for album, guest submissions, and personalized albums
     subfolders = ["album/", "guest-submissions/", "personalized-albums/"]
@@ -29,63 +29,25 @@ def create_event_folder(event_date, event_name):
         full_path = f"{folder_name}{subfolder}"
         print(f"Creating folder: {full_path}")
         s3_client.put_object(
-            Bucket="photo-guests-events",
+            Bucket=BUCKET_NAME,
             Key=full_path,
-            ServerSideEncryption="aws:kms"  # Required header
+            ServerSideEncryption="aws:kms"
         )
 
     return folder_name
 
 
-def generate_presigned_url(bucket_name, key, expiration=86400):
+def generate_upload_url(folder, file_name, expiration=86400):
     """
     Generate a pre-signed URL for uploading to S3.
-    :param bucket_name: Name of the S3 bucket.
-    :param key: The path (key) in the S3 bucket where the file will be uploaded.
-    :param expiration: Expiration time in seconds (default: 24 hours).
-    :return: Pre-signed URL.
     """
+    key = f"{folder}{file_name}"
     return s3_client.generate_presigned_url(
         "put_object",
         Params={
-            "Bucket": bucket_name,
+            "Bucket": BUCKET_NAME,
             "Key": key,
-            "ServerSideEncryption": "aws:kms"  # Optional encryption requirement
+            "ServerSideEncryption": "aws:kms"
         },
         ExpiresIn=expiration
     )
-
-
-def generate_album_upload_url(folder, file_name):
-    """
-    Generate a pre-signed URL for uploading a file to the specified folder in the 'events' bucket.
-    :param folder: The folder path where the file will be uploaded (e.g., '2025-01-15/Wedding/album/').
-    :param file_name: The name of the file to be uploaded (e.g., 'photo1.jpg').
-    :return: Pre-signed URL.
-    """
-    key = f"{folder}{file_name}"
-    return generate_presigned_url(BUCKET_NAME, key, expiration=86400)  # 24 hours
-
-
-def generate_guest_submission_url(event_id, guest_id):
-    today = datetime.utcnow().strftime("%Y-%m-%d")
-    key = f"{today}/{event_id}/guest-submissions/{guest_id}/photo.jpg"
-    return generate_presigned_url(key)
-
-
-def generate_guest_list_upload_url(event_id):
-    """
-    Generate a pre-signed URL for uploading the guest list CSV file.
-    """
-    folder = f"guest-submissions/{event_id}/"
-    file_name = "guest_list.csv"
-    key = f"{folder}{file_name}"
-
-    # Generate the pre-signed URL for PUT operation
-    return generate_presigned_url(
-        bucket_name="photo-guests-events",
-        key=key,
-        expiration=86400  # 24 hours
-    )
-
-

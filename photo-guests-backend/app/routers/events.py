@@ -1,40 +1,25 @@
 from datetime import date
 from fastapi import APIRouter
 from pydantic import BaseModel
-
 from app.dynamodb_service import save_event
-from app.s3_service import create_event_folder, generate_guest_list_upload_url
+from app.s3_service import create_event_folder, generate_upload_url
 import uuid
 
 router = APIRouter()
 
 
-# Request model for creating an event
 class EventRequest(BaseModel):
     event_name: str
-    event_date: date  # Ensure the date is validated
+    event_date: date
     photographer_name: str
     email: str
-    phone: str  # Photographer's phone number
+    phone: str
 
 
 @router.post("/")
 def create_event(request: EventRequest):
-    """
-    Creates an event, saves details in DynamoDB, and creates an S3 folder structure.
-
-    Args:
-        request (EventRequest): The event details from the photographer.
-
-    Returns:
-        dict: Information about the created event and S3 folder.
-    """
-    event_id = str(uuid.uuid4())  # Generate a unique event ID
-
-    # Create the event folder in S3
-    folder = create_event_folder(request.event_date, request.event_name)
-
-    # Save event details in DynamoDB
+    event_id = str(uuid.uuid4())
+    folder = create_event_folder(request.event_date, event_id)
     save_event(
         event_id=event_id,
         event_name=request.event_name,
@@ -42,25 +27,17 @@ def create_event(request: EventRequest):
         photographer_name=request.photographer_name,
         email=request.email,
         phone=request.phone,
-        upload_url=None,  # No upload URL at this step
-        folder=folder,
+        folder=folder
     )
-
-    # Return the event ID and folder path to the photographer
     return {
         "event_id": event_id,
         "folder": folder,
-        "message": "Event folder created successfully. Share this event ID with the photographer.",
+        "message": "Event created successfully. Share this folder path with the photographer."
     }
 
 
 @router.get("/{event_id}/upload-guest-list-url")
 def get_guest_list_upload_url(event_id: str):
-    """
-    Returns a pre-signed URL for the photographer to upload the guest list CSV.
-    """
-    upload_url = generate_guest_list_upload_url(event_id)
-    return {
-        "message": "Use this URL to upload the guest list CSV.",
-        "upload_url": upload_url
-    }
+    folder = f"guest-submissions/{event_id}/"
+    upload_url = generate_upload_url(folder, "guest_list.csv")
+    return {"message": "Use this URL to upload the guest list CSV.", "upload_url": upload_url}
