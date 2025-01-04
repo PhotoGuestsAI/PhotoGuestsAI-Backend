@@ -3,7 +3,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 
 from app.dynamodb_service import save_event
-from app.s3_service import create_event_folder
+from app.s3_service import create_event_folder, generate_guest_list_upload_url
 import uuid
 
 router = APIRouter()
@@ -51,4 +51,16 @@ def create_event(request: EventRequest):
         "event_id": event_id,
         "folder": folder,
         "message": "Event folder created successfully. Share this event ID with the photographer.",
+    }
+
+
+@router.get("/{event_id}/upload-guest-list-url")
+def get_guest_list_upload_url(event_id: str):
+    """
+    Returns a pre-signed URL for the photographer to upload the guest list CSV.
+    """
+    upload_url = generate_guest_list_upload_url(event_id)
+    return {
+        "message": "Use this URL to upload the guest list CSV.",
+        "upload_url": upload_url
     }

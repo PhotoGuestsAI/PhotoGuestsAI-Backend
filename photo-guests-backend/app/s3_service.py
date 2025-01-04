@@ -71,3 +71,21 @@ def generate_guest_submission_url(event_id, guest_id):
     today = datetime.utcnow().strftime("%Y-%m-%d")
     key = f"{today}/{event_id}/guest-submissions/{guest_id}/photo.jpg"
     return generate_presigned_url(key)
+
+
+def generate_guest_list_upload_url(event_id):
+    """
+    Generate a pre-signed URL for uploading the guest list CSV file.
+    """
+    folder = f"guest-submissions/{event_id}/"
+    file_name = "guest_list.csv"
+    key = f"{folder}{file_name}"
+
+    # Generate the pre-signed URL for PUT operation
+    return generate_presigned_url(
+        bucket_name="photo-guests-events",
+        key=key,
+        expiration=86400  # 24 hours
+    )
+
+

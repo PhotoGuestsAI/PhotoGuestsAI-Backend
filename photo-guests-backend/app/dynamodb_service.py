@@ -1,3 +1,4 @@
+import csv
 from datetime import datetime, timezone
 
 import boto3
@@ -72,20 +73,46 @@ def add_guest(event_id, name, phone):
 
 def update_guest_list(event_id, guest_list):
     """
-    Update the guest list for a specific event in the Events table.
+    Update the guest list for an event in the Events table.
     """
     try:
         table = dynamodb.Table("Events")
-
-        # Update the guest_list field
         table.update_item(
             Key={"event_id": event_id},
             UpdateExpression="SET guest_list = :g",
-            ExpressionAttributeValues={
-                ":g": guest_list
-            }
+            ExpressionAttributeValues={":g": guest_list},
         )
         print(f"Guest list updated successfully for event_id {event_id}!")
     except Exception as error:
         print(f"Error updating guest list: {error}")
         raise
+
+
+def process_guest_list(event_id):
+    """
+    Processes the uploaded guest list CSV and updates the DynamoDB table.
+    """
+    # S3 client
+    s3_client = boto3.client("s3")
+
+    # File location in S3
+    bucket_name = "photo-guests-events"
+    key = f"guest-submissions/{event_id}/guest_list.csv"
+
+    # Download the CSV file
+    s3_client.download_file(bucket_name, key, "/tmp/guest_list.csv")
+
+    # Parse the CSV
+    guest_list = []
+    with open("/tmp/guest_list.csv", "r") as csvfile:
+        reader = csv.DictReader(csvfile)
+        for row in reader:
+            guest_list.append({
+                "name": row["name"],
+                "phone": row["phone"]
+            })
+
+    # Update the DynamoDB table
+    update_guest_list(event_id, guest_list)
+
+    print(f"Guest list updated successfully for event_id {event_id}.")
