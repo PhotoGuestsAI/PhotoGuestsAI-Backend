@@ -13,7 +13,7 @@ dynamodb = boto3.resource(
 EVENTS_TABLE = "Events"
 
 
-def save_event(event_id, event_name, event_date, photographer_name, email, phone, folder):
+def save_event(event_id, event_name, event_date, photographer_name, email, phone, upload_urls, folder):
     """
     Save event details to the Events DynamoDB table.
     """
@@ -21,21 +21,22 @@ def save_event(event_id, event_name, event_date, photographer_name, email, phone
         table = dynamodb.Table(EVENTS_TABLE)
         table.put_item(
             Item={
-                "event_id": event_id,
+                "event_id": event_id,  # Partition key
                 "event_name": event_name,
                 "event_date": event_date,
                 "photographer_name": photographer_name,
                 "email": email,
-                "phone": phone,
+                "phone": phone,  # Photographer phone number
+                "upload_urls": upload_urls,  # Contains URLs for guest list and album upload
                 "folder": folder,
-                "created_at": datetime.now(timezone.utc).isoformat(),
-                "status": "Pending Upload",
-                "guest_list": [],
+                "created_at": datetime.now(timezone.utc).isoformat(),  # ISO 8601 timestamp
+                "status": "Pending Upload",  # Default status
+                "guest_list": [],  # Initially an empty list
             }
         )
-        print(f"Event {event_name} saved successfully!")
+        print(f"Event {event_name} created successfully!")
     except Exception as error:
-        print(f"Error saving event: {error}")
+        print(f"Error saving event to DynamoDB: {error}")
         raise
 
 
