@@ -31,6 +31,18 @@ def fetch_events_by_email(email: str):
         raise Exception(f"Error fetching events from DynamoDB: {str(e)}")
 
 
+def get_event_by_id(event_id: str):
+    """
+    Fetch an event by its event_id from DynamoDB.
+    """
+    try:
+        # Get the item using event_id as the key
+        response = events_table.get_item(Key={"event_id": event_id})
+        return response.get("Item")  # Return the item if found
+    except Exception as e:
+        raise Exception(f"Error fetching event by ID: {str(e)}")
+
+
 def save_event(event_item: dict):
     """
     Save a new event to the DynamoDB events table.

@@ -4,7 +4,7 @@ from datetime import datetime
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from ..dynamodb_service import save_event, fetch_events_by_email
+from ..dynamodb_service import save_event, fetch_events_by_email, get_event_by_id
 from ..s3_service import create_event_folder, generate_event_presigned_urls
 
 router = APIRouter()
@@ -93,3 +93,20 @@ def create_event(request: EventRequest):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error creating event: {str(e)}")
+
+
+@router.get("/{event_id}")
+def get_event_details(event_id: str):
+    """
+    Fetch the details of a specific event by event_id.
+    """
+    try:
+        event = get_event_by_id(event_id)  # Call the service function to fetch event details
+        if not event:
+            raise HTTPException(status_code=404, detail="Event not found")
+
+        # Directly return the event with the pre-signed URLs stored in DynamoDB
+        return event
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching event: {str(e)}")
