@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from app.routers import events, guests, auth
+from .routers import events, guests, auth
 
 import sys
 print(sys.path)

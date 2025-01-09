@@ -1,8 +1,8 @@
 from datetime import date
 from fastapi import APIRouter
 from pydantic import BaseModel
-from app.dynamodb_service import save_event
-from app.s3_service import create_event_folder, generate_event_presigned_urls
+from ..dynamodb_service import save_event
+from ..s3_service import create_event_folder, generate_event_presigned_urls
 import uuid
 
 router = APIRouter()

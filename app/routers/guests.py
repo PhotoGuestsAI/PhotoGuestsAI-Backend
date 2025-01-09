@@ -1,6 +1,6 @@
 import uuid
 from fastapi import APIRouter
-from app.s3_service import generate_presigned_upload_url
+from ..s3_service import generate_presigned_upload_url
 
 router = APIRouter()
 
