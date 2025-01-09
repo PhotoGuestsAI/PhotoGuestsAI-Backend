@@ -1,11 +1,12 @@
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, UploadFile, File
 from pydantic import BaseModel
+from starlette.responses import JSONResponse
 
 from ..dynamodb_service import save_event, fetch_events_by_email, get_event_by_id
-from ..s3_service import create_event_folder, generate_event_presigned_urls
+from ..s3_service import create_event_folder, generate_event_presigned_urls, upload_file_to_s3
 
 router = APIRouter()
 
@@ -53,18 +54,9 @@ def create_event(request: EventRequest):
             raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD.")
 
         # Create the event folder in S3
-        folder = create_event_folder(request.photographer_name, event_date, request.event_name)
+        folder = create_event_folder(request.photographer_name, event_date, request.event_name, event_id)
 
-        # Generate pre-signed URLs for uploads
-        upload_urls = generate_event_presigned_urls(request.photographer_name, event_date, request.event_name)
-
-        # Define upload statuses
-        upload_statuses = {
-            "guest_list_upload_status": "Pending Upload",
-            "album_upload_status": "Pending Upload",
-        }
-
-        # Save event details in DynamoDB
+        # Save event details in DynamoDB with separate upload URLs and statuses
         event_item = {
             "event_id": event_id,
             "created_at": datetime.utcnow().isoformat(),
@@ -76,8 +68,6 @@ def create_event(request: EventRequest):
             "folder": folder,
             "status": "Pending Upload",
             "guest_list": [],  # Placeholder for guest list
-            "upload_urls": upload_urls,
-            "upload_statuses": upload_statuses,
         }
 
         save_event(event_item)
@@ -86,8 +76,6 @@ def create_event(request: EventRequest):
         return {
             "event_id": event_id,
             "folder": folder,
-            "upload_urls": upload_urls,
-            "upload_statuses": upload_statuses,
             "message": "Event created successfully. Share the upload URLs with the photographer.",
         }
 
@@ -105,8 +93,48 @@ def get_event_details(event_id: str):
         if not event:
             raise HTTPException(status_code=404, detail="Event not found")
 
-        # Directly return the event with the pre-signed URLs stored in DynamoDB
-        return event
+        # Generate pre-signed URLs dynamically for uploads
+        upload_urls = generate_event_presigned_urls(event["photographer_name"], event["event_date"],
+                                                    event["event_name"], event_id)
+
+        # Return event details including pre-signed URLs
+        return {
+            **event,
+            "upload_urls": upload_urls
+        }
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching event: {str(e)}")
+
+
+@router.post("/{event_id}/upload-event-album")
+async def upload_event_album(event_id: str, album: UploadFile = File(...)):
+    """
+    Handle the upload of album ZIP file and save it to S3 under the event's folder.
+
+    Args:
+        event_id (str): The event ID for the album.
+        album (UploadFile): The album zip file.
+
+    Returns:
+        dict: Success message if the file was uploaded successfully.
+    """
+    try:
+        # Fetch the event to get the folder path
+        event = get_event_by_id(event_id)  # Assuming you have a method to fetch the event by ID
+        if not event:
+            raise HTTPException(status_code=404, detail="Event not found")
+
+        # Define the S3 key (path) for the album file
+        s3_key = f"{event['folder']}album/{album.filename}"
+
+        # Upload the album file to S3 using the helper function
+        upload_success = upload_file_to_s3(album.file, s3_key, album.content_type)
+
+        if upload_success:
+            return JSONResponse(content={"message": "Album uploaded successfully!"}, status_code=200)
+        else:
+            raise HTTPException(status_code=500, detail="Failed to upload the album to S3")
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error uploading file: {str(e)}")
