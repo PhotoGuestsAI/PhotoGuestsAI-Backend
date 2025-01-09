@@ -1,19 +1,22 @@
-from datetime import date
-from fastapi import APIRouter
+import uuid
+from datetime import datetime
+
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+
 from ..dynamodb_service import save_event
 from ..s3_service import create_event_folder, generate_event_presigned_urls
-import uuid
 
 router = APIRouter()
 
 
+# Request Model for Event Creation
 class EventRequest(BaseModel):
     event_name: str
-    event_date: date
-    photographer_name: str
-    email: str
+    event_date: str  # Format: YYYY-MM-DD
     phone: str
+    email: str  # Photographer's email
+    photographer_name: str  # Photographer's name
 
 
 @router.post("/")
@@ -27,30 +30,54 @@ def create_event(request: EventRequest):
     Returns:
         dict: Information about the created event, pre-signed URLs, and S3 folder.
     """
-    event_id = str(uuid.uuid4())  # Generate a unique event ID
+    try:
+        # Generate a unique event ID
+        event_id = str(uuid.uuid4())
 
-    # Create the event folder in S3
-    folder = create_event_folder(request.event_date, event_id)
+        # Parse and validate event_date
+        try:
+            event_date = datetime.strptime(request.event_date, "%Y-%m-%d").date()
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD.")
 
-    # Generate pre-signed URLs for uploading the guest list and album
-    upload_urls = generate_event_presigned_urls(request.event_date, event_id)
+        # Create the event folder in S3
+        folder = create_event_folder(request.photographer_name, event_date, request.event_name)
 
-    # Save event details in DynamoDB
-    save_event(
-        event_id=event_id,
-        event_name=request.event_name,
-        event_date=str(request.event_date),
-        photographer_name=request.photographer_name,
-        email=request.email,
-        phone=request.phone,
-        upload_urls=upload_urls,
-        folder=folder
-    )
+        # Generate pre-signed URLs for uploads
+        upload_urls = generate_event_presigned_urls(request.photographer_name, event_date, request.event_name)
 
-    # Return event details along with pre-signed URLs
-    return {
-        "event_id": event_id,
-        "folder": folder,
-        "upload_urls": upload_urls,
-        "message": "Event created successfully. Share the upload URLs with the photographer."
-    }
+        # Define upload statuses
+        upload_statuses = {
+            "guest_list_upload_status": "Pending Upload",
+            "album_upload_status": "Pending Upload",
+        }
+
+        # Save event details in DynamoDB
+        event_item = {
+            "event_id": event_id,
+            "created_at": datetime.utcnow().isoformat(),
+            "event_name": request.event_name,
+            "event_date": str(event_date),
+            "photographer_name": request.photographer_name,
+            "email": request.email,
+            "phone": request.phone,
+            "folder": folder,
+            "status": "Pending Upload",
+            "guest_list": [],  # Placeholder for guest list
+            "upload_urls": upload_urls,
+            "upload_statuses": upload_statuses,
+        }
+
+        save_event(event_item)
+
+        # Return response with event details and upload URLs
+        return {
+            "event_id": event_id,
+            "folder": folder,
+            "upload_urls": upload_urls,
+            "upload_statuses": upload_statuses,
+            "message": "Event created successfully. Share the upload URLs with the photographer.",
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error creating event: {str(e)}")

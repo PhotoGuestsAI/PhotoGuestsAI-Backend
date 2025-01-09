@@ -1,7 +1,7 @@
 import csv
-from datetime import datetime, timezone
-import boto3
 import os
+
+import boto3
 
 dynamodb = boto3.resource(
     "dynamodb",
@@ -13,38 +13,24 @@ dynamodb = boto3.resource(
 EVENTS_TABLE = "Events"
 
 
-def save_event(event_id, event_name, event_date, photographer_name, email, phone, upload_urls, folder):
+def save_event(event_item: dict):
     """
-    Save event details to the Events DynamoDB table.
+    Saves the event to the DynamoDB events table.
+
+    :param event_item: Dictionary containing event details to be saved.
     """
     try:
-        table = dynamodb.Table(EVENTS_TABLE)
-        table.put_item(
-            Item={
-                "event_id": event_id,  # Partition key
-                "event_name": event_name,
-                "event_date": event_date,
-                "photographer_name": photographer_name,
-                "email": email,
-                "phone": phone,  # Photographer phone number
-                "upload_urls": upload_urls,  # Contains URLs for guest list and album upload
-                "folder": folder,
-                "created_at": datetime.now(timezone.utc).isoformat(),  # ISO 8601 timestamp
-                "status": "Pending Upload",  # Default status
-                "guest_list": [],  # Initially an empty list
-            }
-        )
-        print(f"Event {event_name} created successfully!")
-    except Exception as error:
-        print(f"Error saving event to DynamoDB: {error}")
-        raise
+        events_table = dynamodb.Table(EVENTS_TABLE)
+        events_table.put_item(Item=event_item)
+    except Exception as e:
+        raise Exception(f"Failed to save event to DynamoDB: {str(e)}")
 
 
 def insert_guests_from_s3_to_dynamodb(event_id):
     """
     Processes the uploaded guest list CSV and updates the DynamoDB table.
     """
-    from app.s3_service import s3_client  # Import here to avoid circular imports
+    from .s3_service import s3_client  # Import here to avoid circular imports
 
     bucket_name = "photo-guests-events"
     key = f"guest-submissions/{event_id}/guest_list.csv"
