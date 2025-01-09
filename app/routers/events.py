@@ -5,7 +5,7 @@ from fastapi import APIRouter, HTTPException, UploadFile, File
 from pydantic import BaseModel
 from starlette.responses import JSONResponse
 
-from ..dynamodb_service import save_event, fetch_events_by_email, get_event_by_id
+from ..dynamodb_service import save_event, fetch_events_by_email, get_event_by_id, update_event_status
 from ..s3_service import create_event_folder, generate_event_presigned_urls, upload_file_to_s3
 
 router = APIRouter()
@@ -132,6 +132,8 @@ async def upload_event_album(event_id: str, album: UploadFile = File(...)):
         upload_success = upload_file_to_s3(album.file, s3_key, album.content_type)
 
         if upload_success:
+            # Update the event status to reflect the album upload status
+            update_event_status(event_id, "Album Uploaded")
             return JSONResponse(content={"message": "Album uploaded successfully!"}, status_code=200)
         else:
             raise HTTPException(status_code=500, detail="Failed to upload the album to S3")

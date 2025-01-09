@@ -2,6 +2,7 @@ import csv
 import os
 import boto3
 from boto3.dynamodb.conditions import Attr
+from botocore.exceptions import ClientError
 
 # Initialize DynamoDB resource
 dynamodb = boto3.resource(
@@ -122,4 +123,29 @@ def update_guest_list_in_dynamodb(event_id, guest_list):
         print(f"Guest list updated successfully for event_id {event_id}!")
     except Exception as error:
         print(f"Error updating guest list: {error}")
+        raise
+
+
+def update_event_status(event_id, status):
+    """
+    Update the status of the event in the DynamoDB table.
+
+    Args:
+        event_id (str): The unique event ID.
+        status (str): The new status to update for the event.
+
+    Returns:
+        None
+    """
+    try:
+        response = events_table.update_item(
+            Key={"event_id": event_id},
+            UpdateExpression="SET #status = :status",
+            ExpressionAttributeNames={"#status": "status"},
+            ExpressionAttributeValues={":status": status},
+            ReturnValues="UPDATED_NEW"
+        )
+        print(f"Event status updated successfully for event_id {event_id}: {response}")
+    except ClientError as e:
+        print(f"Error updating event status: {e}")
         raise
