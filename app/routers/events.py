@@ -4,7 +4,7 @@ from datetime import datetime
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from ..dynamodb_service import save_event
+from ..dynamodb_service import save_event, fetch_events_by_email
 from ..s3_service import create_event_folder, generate_event_presigned_urls
 
 router = APIRouter()
@@ -17,6 +17,18 @@ class EventRequest(BaseModel):
     phone: str
     email: str  # Photographer's email
     photographer_name: str  # Photographer's name
+
+
+@router.get("/")
+def get_user_events(email: str):
+    """
+    Fetch all events for a specific user by email.
+    """
+    try:
+        events = fetch_events_by_email(email)  # Call the service method
+        return events
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching events: {str(e)}")
 
 
 @router.post("/")
