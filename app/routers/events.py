@@ -1,13 +1,15 @@
 import uuid
 from datetime import datetime
-from fastapi import APIRouter, HTTPException, UploadFile, File
+
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel
 from starlette.responses import JSONResponse
 
 # Local imports
 from ..dynamodb_service import save_event, fetch_events_by_email, get_event_by_id, update_event_status
-from ..s3_service import create_event_folder, generate_event_presigned_urls, upload_file_to_s3
 from ..enums.event_status import EventStatus
+from ..s3_service import create_event_folder, generate_event_presigned_urls, upload_file_to_s3, \
+    append_to_guest_list_in_s3
 
 router = APIRouter()
 
@@ -22,6 +24,9 @@ class EventRequest(BaseModel):
     phone: str
     email: str  # Photographer's email
     photographer_name: str  # Photographer's name
+
+
+BUCKET_NAME = "photo-guests-events"
 
 
 def raise_http_exception(status_code: int, detail: str):
@@ -146,3 +151,45 @@ async def upload_event_album(event_id: str, album: UploadFile = File(...)):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error uploading file: {str(e)}")
+
+
+@router.post("/{event_id}/submit-guest")
+async def submit_guest(
+        event_id: str,
+        name: str = Form(...),
+        phone: str = Form(...),
+        photo: UploadFile = File(...)
+):
+    """ Handle the submission of a guest's details (name, phone, photo) and upload it to S3. """
+    try:
+        # Fetch the event to get the folder path
+        event = get_event_by_id(event_id)
+        if not event:
+            raise HTTPException(status_code=404, detail="Event not found")
+
+        # Define the S3 key for the guest's photo
+        s3_key = f"{event['folder']}guest-submissions/{name}_{uuid.uuid4()}.jpg"
+
+        # Upload the guest's photo to S3
+        upload_success = upload_file_to_s3(photo.file, s3_key, photo.content_type)
+
+        if not upload_success:
+            raise HTTPException(status_code=500, detail="Failed to upload the photo to S3")
+
+        # Prepare guest submission data (name, phone, photo URL)
+        guest_submission = {
+            "name": name,
+            "phone": phone,
+            "photo_url": f"https://{BUCKET_NAME}.s3.amazonaws.com/{s3_key}",
+        }
+
+        # S3 key for guest list
+        guest_file_key = f"{event['folder']}guest-submissions/guest_list.json"
+
+        # Append the new guest to the S3 file
+        append_to_guest_list_in_s3(guest_file_key, guest_submission)
+
+        return {"message": "Guest submitted successfully!"}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error submitting guest: {str(e)}")

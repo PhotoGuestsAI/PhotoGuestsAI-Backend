@@ -1,4 +1,5 @@
 import io
+import json
 import os
 import zipfile
 from botocore.exceptions import NoCredentialsError
@@ -145,3 +146,25 @@ def upload_file_to_s3(file, file_name, content_type):
         raise Exception("Credentials not available")
     except Exception as e:
         raise Exception(f"Error uploading file: {str(e)}")
+
+
+def append_to_guest_list_in_s3(file_key, guest_submission):
+    """ Append a guest's submission to the existing guest list in S3. """
+    try:
+        try:
+            file_object = s3_client.get_object(Bucket=BUCKET_NAME, Key=file_key)
+            guest_list = json.loads(file_object['Body'].read().decode('utf-8'))
+        except s3_client.exceptions.NoSuchKey:
+            guest_list = []
+
+        guest_list.append(guest_submission)
+
+        s3_client.put_object(
+            Bucket=BUCKET_NAME,
+            Key=file_key,
+            Body=json.dumps(guest_list),
+            ContentType='application/json'
+        )
+    except Exception as e:
+        print(f"Error appending to guest list in S3: {str(e)}")
+        raise

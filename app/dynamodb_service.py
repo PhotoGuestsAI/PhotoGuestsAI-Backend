@@ -1,6 +1,7 @@
 import csv
 import os
 import boto3
+from boto3.dynamodb.conditions import Attr
 from botocore.exceptions import ClientError
 from dotenv import load_dotenv
 
@@ -110,24 +111,41 @@ def insert_guests_from_s3_to_dynamodb(event_id: str):
             os.remove(temp_file_path)
 
 
-def update_guest_list_in_dynamodb(event_id: str, guest_list: list):
-    """
-    Update the guest list for an event in DynamoDB.
+# dynamodb_service.py
 
-    Args:
-        event_id (str): The event ID.
-        guest_list (list): The updated guest list.
-    """
-    try:
-        events_table.update_item(
-            Key={"event_id": event_id},
-            UpdateExpression="SET guest_list = :g",
-            ExpressionAttributeValues={":g": guest_list},
-        )
-        print(f"Guest list updated successfully for event_id {event_id}!")
-    except Exception as error:
-        print(f"Error updating guest list: {error}")
-        raise
+# def update_guest_list_in_dynamodb(event_id: str, guest_data: dict):
+#     """
+#     Update the guest list for an event in DynamoDB by appending new guest data.
+#
+#     Args:
+#         event_id (str): The event ID.
+#         guest_data (dict): The data of the guest to add. It includes the name, phone, and photo URL.
+#
+#     Returns:
+#         None
+#     """
+#     try:
+#         # Retrieve the current guest list for the event
+#         event = get_event_by_id(event_id)
+#         if not event:
+#             raise Exception("Event not found")
+#
+#         current_guest_list = event.get("guest_list", [])
+#
+#         # Append the new guest data
+#         current_guest_list.append(guest_data)
+#
+#         # Update the guest list in DynamoDB
+#         events_table.update_item(
+#             Key={"event_id": event_id},
+#             UpdateExpression="SET guest_list = :g",
+#             ExpressionAttributeValues={":g": current_guest_list},
+#         )
+#         print(f"Guest list updated successfully for event_id {event_id}!")
+#
+#     except Exception as error:
+#         print(f"Error updating guest list: {error}")
+#         raise
 
 
 # === Event Status Management ===
