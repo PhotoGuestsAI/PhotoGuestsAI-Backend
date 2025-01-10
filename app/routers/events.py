@@ -7,6 +7,7 @@ from starlette.responses import JSONResponse
 
 from ..dynamodb_service import save_event, fetch_events_by_email, get_event_by_id, update_event_status
 from ..s3_service import create_event_folder, generate_event_presigned_urls, upload_file_to_s3
+from ..enums.event_status import EventStatus
 
 router = APIRouter()
 
@@ -66,7 +67,7 @@ def create_event(request: EventRequest):
             "email": request.email,
             "phone": request.phone,
             "folder": folder,
-            "status": "Pending Upload",
+            "status": EventStatus.PENDING_UPLOAD,
             "guest_list": [],  # Placeholder for guest list
         }
 
@@ -133,7 +134,7 @@ async def upload_event_album(event_id: str, album: UploadFile = File(...)):
 
         if upload_success:
             # Update the event status to reflect the album upload status
-            update_event_status(event_id, "Album Uploaded")
+            update_event_status(event_id, EventStatus.ALBUM_UPLOADED)
             return JSONResponse(content={"message": "Album uploaded successfully!"}, status_code=200)
         else:
             raise HTTPException(status_code=500, detail="Failed to upload the album to S3")
