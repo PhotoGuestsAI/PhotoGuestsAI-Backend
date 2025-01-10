@@ -1,13 +1,14 @@
 import io
 import os
 import zipfile
-
-import boto3
 from botocore.exceptions import NoCredentialsError
 from dotenv import load_dotenv
+import boto3
 
+# Load environment variables from .env file
 load_dotenv()
 
+# Set up AWS S3 client with the credentials from environment variables
 s3_client = boto3.client(
     "s3",
     aws_access_key_id=os.getenv("AWS_ACCESS_KEY"),
@@ -20,13 +21,22 @@ BUCKET_NAME = "photo-guests-events"
 
 def create_event_folder(photographer_name, event_date, event_name, event_id):
     """
-    Create the S3 folder structure under the bucket named 'photo-guests-events'.
-    Folder structure: <photographer_name>/<event_date>/<event_name>/<event_id>/<subfolders>.
-    Creates an empty event_album.zip file in the 'album' folder.
+    Create the S3 folder structure under the specified bucket.
+    Creates subfolders for album, guest submissions, and personalized albums.
+    Also creates an empty album zip file in the 'album' folder.
+
+    Args:
+        photographer_name (str): Photographer's name.
+        event_date (str): Event date in the format 'YYYY-MM-DD'.
+        event_name (str): Name of the event.
+        event_id (str): Unique event ID.
+
+    Returns:
+        str: The folder path created on S3.
     """
     folder_name = f"{photographer_name}/{event_date}/{event_name}/{event_id}/"
 
-    # Create subfolders for album, guest submissions, and personalized albums
+    # List of subfolders to create under the event folder
     subfolders = ["album/", "guest-submissions/", "personalized-albums/"]
     for subfolder in subfolders:
         full_path = f"{folder_name}{subfolder}"
@@ -34,18 +44,17 @@ def create_event_folder(photographer_name, event_date, event_name, event_id):
         s3_client.put_object(
             Bucket=BUCKET_NAME,
             Key=full_path,
-            ServerSideEncryption="aws:kms",  # Optional encryption requirement
+            ServerSideEncryption="aws:kms",  # Optional encryption for the folder
         )
 
     # Create an empty event_album.zip file in the 'album' folder
-    empty_zip_file = io.BytesIO()  # Create an in-memory bytes buffer
+    empty_zip_file = io.BytesIO()  # In-memory bytes buffer
     with zipfile.ZipFile(empty_zip_file, 'w', zipfile.ZIP_DEFLATED) as zipf:
         pass  # Empty zip file, no files added
 
-    # Ensure the file is at the beginning of the buffer before uploading
-    empty_zip_file.seek(0)
+    empty_zip_file.seek(0)  # Ensure the buffer is at the beginning
 
-    # Upload the empty zip file to S3 in the 'album' folder
+    # Upload the empty zip file to the album folder on S3
     zip_file_path = f"{folder_name}album/event_album.zip"
     print(f"Creating empty zip file: {zip_file_path}")
     s3_client.put_object(
@@ -53,7 +62,7 @@ def create_event_folder(photographer_name, event_date, event_name, event_id):
         Key=zip_file_path,
         Body=empty_zip_file,
         ContentType='application/zip',
-        ServerSideEncryption="aws:kms",  # Optional encryption requirement
+        ServerSideEncryption="aws:kms",  # Optional encryption
     )
 
     return folder_name
@@ -62,17 +71,21 @@ def create_event_folder(photographer_name, event_date, event_name, event_id):
 def generate_presigned_upload_url(bucket_name, key, expiration=86400):
     """
     Generate a pre-signed URL for uploading to S3.
-    :param bucket_name: Name of the S3 bucket.
-    :param key: The path (key) in the S3 bucket where the file will be uploaded.
-    :param expiration: Expiration time in seconds (default: 24 hours).
-    :return: Pre-signed URL.
+
+    Args:
+        bucket_name (str): S3 bucket name.
+        key (str): The path (key) in the S3 bucket for the file.
+        expiration (int, optional): Expiration time in seconds. Defaults to 24 hours.
+
+    Returns:
+        str: The generated pre-signed URL for uploading.
     """
     return s3_client.generate_presigned_url(
         "put_object",
         Params={
             "Bucket": bucket_name,
             "Key": key,
-            "ServerSideEncryption": "aws:kms"  # Optional encryption requirement
+            "ServerSideEncryption": "aws:kms"  # Optional encryption for the file
         },
         ExpiresIn=expiration
     )
@@ -81,8 +94,17 @@ def generate_presigned_upload_url(bucket_name, key, expiration=86400):
 def generate_event_presigned_urls(photographer_name, event_date, event_name, event_id):
     """
     Generate pre-signed URLs for uploading the guest list CSV and album photos.
+
+    Args:
+        photographer_name (str): Photographer's name.
+        event_date (str): Event date.
+        event_name (str): Name of the event.
+        event_id (str): Event ID.
+
+    Returns:
+        dict: Dictionary containing the pre-signed URLs for both guest list and album uploads.
     """
-    # Define paths for the files
+    # Define paths for the files in S3
     guest_list_key = f"{photographer_name}/{event_date}/{event_name}/{event_id}/guest-submissions/guest_list.csv"
     album_key = f"{photographer_name}/{event_date}/{event_name}/{event_id}/album/event_album.zip"
 

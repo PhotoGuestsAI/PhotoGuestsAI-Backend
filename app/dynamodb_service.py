@@ -1,8 +1,11 @@
 import csv
 import os
 import boto3
-from boto3.dynamodb.conditions import Attr
 from botocore.exceptions import ClientError
+from dotenv import load_dotenv
+
+# Load environment variables for AWS credentials and region
+load_dotenv()
 
 # Initialize DynamoDB resource
 dynamodb = boto3.resource(
@@ -12,8 +15,11 @@ dynamodb = boto3.resource(
     region_name=os.getenv("AWS_REGION", "us-east-1"),
 )
 
+# Access the Events table in DynamoDB
 events_table = dynamodb.Table("Events")
 
+
+# === Event-related database operations ===
 
 def fetch_events_by_email(email: str):
     """
@@ -35,24 +41,26 @@ def fetch_events_by_email(email: str):
 def get_event_by_id(event_id: str):
     """
     Fetch an event by its event_id from DynamoDB.
+
+    Args:
+        event_id (str): The unique event ID.
+
+    Returns:
+        dict: The event data.
     """
     try:
-        # Get the item using event_id as the key
         response = events_table.get_item(Key={"event_id": event_id})
-        return response.get("Item")  # Return the item if found
+        return response.get("Item")  # Return event if found
     except Exception as e:
         raise Exception(f"Error fetching event by ID: {str(e)}")
 
 
 def save_event(event_item: dict):
     """
-    Save a new event to the DynamoDB events table.
+    Save a new event to DynamoDB.
 
     Args:
-        event_item (dict): Dictionary containing event details to be saved.
-
-    Returns:
-        None
+        event_item (dict): The event details to be saved.
     """
     try:
         events_table.put_item(Item=event_item)
@@ -60,22 +68,21 @@ def save_event(event_item: dict):
         raise Exception(f"Failed to save event to DynamoDB: {str(e)}")
 
 
-def insert_guests_from_s3_to_dynamodb(event_id):
+# === Guest List Management ===
+
+def insert_guests_from_s3_to_dynamodb(event_id: str):
     """
-    Processes the uploaded guest list CSV from S3 and updates the guest list in DynamoDB.
+    Process the uploaded guest list CSV from S3 and update the guest list in DynamoDB.
 
     Args:
         event_id (str): The unique event ID.
-
-    Returns:
-        None
     """
     from .s3_service import s3_client  # Import here to avoid circular imports
 
     bucket_name = "photo-guests-events"
     key = f"{event_id}/guest-submissions/guest_list.csv"
 
-    # Path for temporary file storage
+    # Path to temporarily store the downloaded CSV file
     temp_file_path = "/tmp/guest_list.csv"
 
     try:
@@ -83,7 +90,7 @@ def insert_guests_from_s3_to_dynamodb(event_id):
         s3_client.download_file(bucket_name, key, temp_file_path)
         print(f"Downloaded guest list from S3: {key}")
 
-        # Parse the CSV file
+        # Read the CSV file and prepare the guest list
         guest_list = []
         with open(temp_file_path, "r") as csvfile:
             reader = csv.DictReader(csvfile)
@@ -92,10 +99,10 @@ def insert_guests_from_s3_to_dynamodb(event_id):
 
         # Update the guest list in DynamoDB
         update_guest_list_in_dynamodb(event_id, guest_list)
-        print(f"Guest list successfully processed and updated for event_id: {event_id}")
+        print(f"Guest list successfully updated for event_id: {event_id}")
 
     except Exception as e:
-        print(f"Error processing guest list from S3 for event_id {event_id}: {e}")
+        print(f"Error processing guest list for event_id {event_id}: {e}")
         raise
     finally:
         # Clean up temporary file
@@ -103,16 +110,13 @@ def insert_guests_from_s3_to_dynamodb(event_id):
             os.remove(temp_file_path)
 
 
-def update_guest_list_in_dynamodb(event_id, guest_list):
+def update_guest_list_in_dynamodb(event_id: str, guest_list: list):
     """
-    Update the guest list for an event in the DynamoDB events table.
+    Update the guest list for an event in DynamoDB.
 
     Args:
-        event_id (str): The unique event ID.
-        guest_list (list): List of guests with names and phone numbers.
-
-    Returns:
-        None
+        event_id (str): The event ID.
+        guest_list (list): The updated guest list.
     """
     try:
         events_table.update_item(
@@ -126,16 +130,15 @@ def update_guest_list_in_dynamodb(event_id, guest_list):
         raise
 
 
-def update_event_status(event_id, status):
+# === Event Status Management ===
+
+def update_event_status(event_id: str, status: str):
     """
-    Update the status of the event in the DynamoDB table.
+    Update the status of an event in DynamoDB.
 
     Args:
         event_id (str): The unique event ID.
-        status (str): The new status to update for the event.
-
-    Returns:
-        None
+        status (str): The new status to be set for the event.
     """
     try:
         response = events_table.update_item(

@@ -1,15 +1,18 @@
 import uuid
 from datetime import datetime
-
 from fastapi import APIRouter, HTTPException, UploadFile, File
 from pydantic import BaseModel
 from starlette.responses import JSONResponse
 
+# Local imports
 from ..dynamodb_service import save_event, fetch_events_by_email, get_event_by_id, update_event_status
 from ..s3_service import create_event_folder, generate_event_presigned_urls, upload_file_to_s3
 from ..enums.event_status import EventStatus
 
 router = APIRouter()
+
+# Constants
+ALBUM_SUBFOLDER = "album/"
 
 
 # Request Model for Event Creation
@@ -21,13 +24,20 @@ class EventRequest(BaseModel):
     photographer_name: str  # Photographer's name
 
 
+def raise_http_exception(status_code: int, detail: str):
+    """
+    Helper function to raise HTTPException.
+    """
+    raise HTTPException(status_code=status_code, detail=detail)
+
+
 @router.get("/")
 def get_user_events(email: str):
     """
     Fetch all events for a specific user by email.
     """
     try:
-        events = fetch_events_by_email(email)  # Call the service method
+        events = fetch_events_by_email(email)
         return events
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching events: {str(e)}")
@@ -52,7 +62,7 @@ def create_event(request: EventRequest):
         try:
             event_date = datetime.strptime(request.event_date, "%Y-%m-%d").date()
         except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD.")
+            raise_http_exception(400, "Invalid date format. Use YYYY-MM-DD.")
 
         # Create the event folder in S3
         folder = create_event_folder(request.photographer_name, event_date, request.event_name, event_id)
@@ -73,7 +83,6 @@ def create_event(request: EventRequest):
 
         save_event(event_item)
 
-        # Return response with event details and upload URLs
         return {
             "event_id": event_id,
             "folder": folder,
@@ -90,19 +99,15 @@ def get_event_details(event_id: str):
     Fetch the details of a specific event by event_id.
     """
     try:
-        event = get_event_by_id(event_id)  # Call the service function to fetch event details
+        event = get_event_by_id(event_id)
         if not event:
-            raise HTTPException(status_code=404, detail="Event not found")
+            raise_http_exception(404, "Event not found")
 
         # Generate pre-signed URLs dynamically for uploads
         upload_urls = generate_event_presigned_urls(event["photographer_name"], event["event_date"],
                                                     event["event_name"], event_id)
 
-        # Return event details including pre-signed URLs
-        return {
-            **event,
-            "upload_urls": upload_urls
-        }
+        return {**event, "upload_urls": upload_urls}
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching event: {str(e)}")
@@ -122,12 +127,12 @@ async def upload_event_album(event_id: str, album: UploadFile = File(...)):
     """
     try:
         # Fetch the event to get the folder path
-        event = get_event_by_id(event_id)  # Assuming you have a method to fetch the event by ID
+        event = get_event_by_id(event_id)
         if not event:
-            raise HTTPException(status_code=404, detail="Event not found")
+            raise_http_exception(404, "Event not found")
 
         # Define the S3 key (path) for the album file
-        s3_key = f"{event['folder']}album/{album.filename}"
+        s3_key = f"{event['folder']}{ALBUM_SUBFOLDER}{album.filename}"
 
         # Upload the album file to S3 using the helper function
         upload_success = upload_file_to_s3(album.file, s3_key, album.content_type)
