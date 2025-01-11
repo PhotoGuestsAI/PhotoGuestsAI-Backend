@@ -69,56 +69,6 @@ def create_event_folder(photographer_name, event_date, event_name, event_id):
     return folder_name
 
 
-def generate_presigned_upload_url(bucket_name, key, expiration=86400):
-    """
-    Generate a pre-signed URL for uploading to S3.
-
-    Args:
-        bucket_name (str): S3 bucket name.
-        key (str): The path (key) in the S3 bucket for the file.
-        expiration (int, optional): Expiration time in seconds. Defaults to 24 hours.
-
-    Returns:
-        str: The generated pre-signed URL for uploading.
-    """
-    return s3_client.generate_presigned_url(
-        "put_object",
-        Params={
-            "Bucket": bucket_name,
-            "Key": key,
-            "ServerSideEncryption": "aws:kms"  # Optional encryption for the file
-        },
-        ExpiresIn=expiration
-    )
-
-
-def generate_event_presigned_urls(photographer_name, event_date, event_name, event_id):
-    """
-    Generate pre-signed URLs for uploading the guest list CSV and album photos.
-
-    Args:
-        photographer_name (str): Photographer's name.
-        event_date (str): Event date.
-        event_name (str): Name of the event.
-        event_id (str): Event ID.
-
-    Returns:
-        dict: Dictionary containing the pre-signed URLs for both guest list and album uploads.
-    """
-    # Define paths for the files in S3
-    guest_list_key = f"{photographer_name}/{event_date}/{event_name}/{event_id}/guest-submissions/guest_list.csv"
-    album_key = f"{photographer_name}/{event_date}/{event_name}/{event_id}/album/event_album.zip"
-
-    # Generate pre-signed URLs
-    guest_list_url = generate_presigned_upload_url(BUCKET_NAME, guest_list_key)
-    album_url = generate_presigned_upload_url(BUCKET_NAME, album_key)
-
-    return {
-        "guest_list_upload_url": guest_list_url,
-        "album_upload_url": album_url
-    }
-
-
 def upload_file_to_s3(file, file_name, content_type):
     """
     Upload a file to S3.
@@ -168,3 +118,7 @@ def append_to_guest_list_in_s3(file_key, guest_submission):
     except Exception as e:
         print(f"Error appending to guest list in S3: {str(e)}")
         raise
+
+
+def generate_presigned_upload_url():
+    return None

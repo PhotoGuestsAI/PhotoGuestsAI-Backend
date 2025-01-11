@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+from typing import List
 
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel
@@ -8,13 +9,14 @@ from starlette.responses import JSONResponse
 # Local imports
 from ..dynamodb_service import save_event, fetch_events_by_email, get_event_by_id, update_event_status
 from ..enums.event_status import EventStatus
-from ..s3_service import create_event_folder, generate_event_presigned_urls, upload_file_to_s3, \
+from ..s3_service import create_event_folder, upload_file_to_s3, \
     append_to_guest_list_in_s3
 
 router = APIRouter()
 
 # Constants
 ALBUM_SUBFOLDER = "album/"
+BUCKET_NAME = "photo-guests-events"
 
 
 # Request Model for Event Creation
@@ -26,7 +28,25 @@ class EventRequest(BaseModel):
     photographer_name: str  # Photographer's name
 
 
-BUCKET_NAME = "photo-guests-events"
+# Full Event Model
+class Event(BaseModel):
+    event_id: str
+    event_name: str
+    event_date: str
+    status: str
+    photographer_name: str
+    email: str
+    phone: str
+    folder: str
+
+
+# Smaller Event Model (for listing events)
+class EventSummary(BaseModel):
+    event_id: str
+    event_name: str
+    event_date: str
+    status: str
+    email: str
 
 
 def raise_http_exception(status_code: int, detail: str):
@@ -36,14 +56,25 @@ def raise_http_exception(status_code: int, detail: str):
     raise HTTPException(status_code=status_code, detail=detail)
 
 
-@router.get("/")
+@router.get("/", response_model=List[EventSummary])
 def get_user_events(email: str):
     """
     Fetch all events for a specific user by email.
     """
     try:
-        events = fetch_events_by_email(email)
-        return events
+        events = fetch_events_by_email(email)  # This should return the full event data
+        # Return only necessary fields for event listing
+        filtered_events = [
+            EventSummary(
+                event_id=event["event_id"],
+                event_name=event["event_name"],
+                event_date=event["event_date"],
+                status=event["status"],
+                email=event["email"]
+            )
+            for event in events
+        ]
+        return filtered_events
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching events: {str(e)}")
 
@@ -83,7 +114,6 @@ def create_event(request: EventRequest):
             "phone": request.phone,
             "folder": folder,
             "status": EventStatus.PENDING_UPLOAD,
-            "guest_list": [],  # Placeholder for guest list
         }
 
         save_event(event_item)
@@ -98,21 +128,26 @@ def create_event(request: EventRequest):
         raise HTTPException(status_code=500, detail=f"Error creating event: {str(e)}")
 
 
-@router.get("/{event_id}")
+@router.get("/{event_id}", response_model=EventSummary)
 def get_event_details(event_id: str):
     """
-    Fetch the details of a specific event by event_id.
+    Fetch the details of a specific event by event_id and return only a summarized version.
     """
     try:
         event = get_event_by_id(event_id)
         if not event:
             raise_http_exception(404, "Event not found")
 
-        # Generate pre-signed URLs dynamically for uploads
-        upload_urls = generate_event_presigned_urls(event["photographer_name"], event["event_date"],
-                                                    event["event_name"], event_id)
+        # Return summarized event details with pre-signed URLs
+        event_summary = {
+            "event_id": event["event_id"],
+            "event_name": event["event_name"],
+            "event_date": event["event_date"],
+            "status": event["status"],
+            "email": event["email"],
+        }
 
-        return {**event, "upload_urls": upload_urls}
+        return EventSummary(**event_summary)
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching event: {str(e)}")
