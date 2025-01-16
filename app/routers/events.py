@@ -2,9 +2,11 @@ import uuid
 from datetime import datetime
 from typing import List
 
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Depends
 from pydantic import BaseModel
 from starlette.responses import JSONResponse
+
+from .auth import get_current_user
 
 # Local imports
 from ..dynamodb_service import save_event, fetch_events_by_email, get_event_by_id, update_event_status
@@ -129,7 +131,7 @@ def create_event(request: EventRequest):
 
 
 @router.get("/{event_id}", response_model=EventSummary)
-def get_event_details(event_id: str):
+async def get_event_details(event_id: str, current_user: str = Depends(get_current_user)):
     """
     Fetch the details of a specific event by event_id and return only a summarized version.
     """
@@ -138,7 +140,14 @@ def get_event_details(event_id: str):
         if not event:
             raise_http_exception(404, "Event not found")
 
-        # Return summarized event details with pre-signed URLs
+        # Authorization check: ensure the logged-in user is the event creator
+        if event["email"] != current_user:
+            raise HTTPException(
+                status_code=403,
+                detail="You are not authorized to access this event"
+            )
+
+        # Return the event summary
         event_summary = {
             "event_id": event["event_id"],
             "event_name": event["event_name"],
