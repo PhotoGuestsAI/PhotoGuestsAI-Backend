@@ -59,24 +59,25 @@ def raise_http_exception(status_code: int, detail: str):
 
 
 @router.get("/", response_model=List[EventSummary])
-def get_user_events(email: str):
+def get_user_events(current_user: str = Depends(get_current_user)):
     """
-    Fetch all events for a specific user by email.
+    Fetch all events for the logged-in user based on the token.
     """
     try:
-        events = fetch_events_by_email(email)  # This should return the full event data
-        # Return only necessary fields for event listing
-        filtered_events = [
+        # Use the email of the authenticated user
+        events = fetch_events_by_email(current_user)
+
+        # Map events to EventSummary format
+        return [
             EventSummary(
                 event_id=event["event_id"],
                 event_name=event["event_name"],
                 event_date=event["event_date"],
                 status=event["status"],
-                email=event["email"]
+                email=event["email"],
             )
             for event in events
         ]
-        return filtered_events
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching events: {str(e)}")
 
