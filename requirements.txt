@@ -1,5 +1,8 @@
 fastapi
 uvicorn
-boto3
-python-dotenv
 pydantic
+boto3
+requests
+python-jose
+python-decouple
+PyJWT
