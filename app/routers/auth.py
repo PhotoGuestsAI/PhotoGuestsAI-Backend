@@ -80,10 +80,10 @@ def generate_jwt_token(email: str):
     """
     Generate a JWT token with an expiration time.
     """
-    expiration = datetime.utcnow() + timedelta(minutes=JWT_EXPIRATION_MINUTES)
+    # expiration = datetime.utcnow() + timedelta(minutes=JWT_EXPIRATION_MINUTES)
     payload = {
         "email": email,
-        "exp": expiration,
+        # "exp": expiration,
     }
     return jwt.encode(payload, SECRET_KEY, algorithm=JWT_ALGORITHM)
 
