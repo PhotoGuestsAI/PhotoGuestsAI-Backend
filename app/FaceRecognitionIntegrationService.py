@@ -141,11 +141,11 @@ if __name__ == "__main__":
     try:
         result_path = process_and_upload_album(
             username="Amit Lus",
-            event_date="2025-01-09",
-            event_name="3434",
-            event_id="c63e5499-ee78-4d04-9816-336d6b893afe",
-            relative_guest_photo_path="/guest-submissions/badur_a5eb7dbc-c50e-435f-b16a-8896efdbf814.jpg",
-            phone_number="9876543210"
+            event_date="2025-06-10",
+            event_name="badue_wedding",
+            event_id="b67a0b9d-ec29-4665-85f4-c5888bbceecc",
+            relative_guest_photo_path="/guest-submissions/roei_088ad4b7-2df5-41c6-9096-6de11889821b.jpg",
+            phone_number="1111111111"
         )
 
         print(f"Process completed. Personalized album available at: {result_path}")
