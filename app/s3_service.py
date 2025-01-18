@@ -98,6 +98,28 @@ def upload_file_to_s3(file, file_name, content_type):
         raise Exception(f"Error uploading file: {str(e)}")
 
 
+def download_file_from_s3(bucket_name, s3_key, local_path):
+    """
+    Download a file from S3 to a local path.
+
+    Args:
+        bucket_name (str): Name of the S3 bucket.
+        s3_key (str): The S3 key (path) of the file to download.
+        local_path (str): The local path to save the file.
+
+    Returns:
+        None
+    """
+    try:
+        with open(local_path, 'wb') as file:
+            s3_client.download_fileobj(bucket_name, s3_key, file)
+        print(f"File downloaded successfully from S3: {s3_key} to {local_path}")
+    except NoCredentialsError:
+        raise Exception("Credentials not available")
+    except Exception as e:
+        raise Exception(f"Error downloading file from S3: {str(e)}")
+
+
 def append_to_guest_list_in_s3(file_key, guest_submission):
     """ Append a guest's submission to the existing guest list in S3. """
     try:
