@@ -105,13 +105,13 @@ def download_file_from_s3(bucket_name, s3_key, local_path):
     Args:
         bucket_name (str): Name of the S3 bucket.
         s3_key (str): The S3 key (path) of the file to download.
-        local_path (str): The local path to save the file.
+        local_path (str): The full local path where the file will be saved.
 
     Returns:
         None
     """
     try:
-        with open(local_path, 'wb') as file:
+        with open(local_path, 'wb') as file:  # Ensure we write to the file directly
             s3_client.download_fileobj(bucket_name, s3_key, file)
         print(f"File downloaded successfully from S3: {s3_key} to {local_path}")
     except NoCredentialsError:
