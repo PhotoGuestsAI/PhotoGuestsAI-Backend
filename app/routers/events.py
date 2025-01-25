@@ -8,11 +8,9 @@ from starlette.responses import JSONResponse
 
 from .auth import get_current_user
 
-# Local imports
 from ..dynamodb_service import save_event, fetch_events_by_email, get_event_by_id, update_event_status
 from ..enums.event_status import EventStatus
-from ..s3_service import create_event_folder, upload_file_to_s3, \
-    append_to_guest_list_in_s3
+from ..s3_service import create_event_folder, upload_file_to_s3, append_to_guest_list_in_s3
 
 router = APIRouter()
 
@@ -23,39 +21,31 @@ BUCKET_NAME = "photo-guests-events"
 
 # Request Model for Event Creation
 class EventRequest(BaseModel):
-    event_name: str
-    event_date: str  # Format: YYYY-MM-DD
+    name: str
+    date: str  # Format: YYYY-MM-DD
     phone: str
-    email: str  # Photographer's email
-    photographer_name: str  # Photographer's name
+    email: str
+    username: str
 
 
 # Full Event Model
 class Event(BaseModel):
     event_id: str
-    event_name: str
-    event_date: str
+    name: str
+    date: str
     status: str
-    photographer_name: str
+    username: str
     email: str
     phone: str
-    folder: str
 
 
 # Smaller Event Model (for listing events)
 class EventSummary(BaseModel):
     event_id: str
-    event_name: str
-    event_date: str
+    name: str
+    date: str
     status: str
     email: str
-
-
-def raise_http_exception(status_code: int, detail: str):
-    """
-    Helper function to raise HTTPException.
-    """
-    raise HTTPException(status_code=status_code, detail=detail)
 
 
 @router.get("/", response_model=List[EventSummary])
@@ -64,15 +54,14 @@ def get_user_events(current_user: str = Depends(get_current_user)):
     Fetch all events for the logged-in user based on the token.
     """
     try:
-        # Use the email of the authenticated user
         events = fetch_events_by_email(current_user)
 
         # Map events to EventSummary format
         return [
             EventSummary(
                 event_id=event["event_id"],
-                event_name=event["event_name"],
-                event_date=event["event_date"],
+                name=event["name"],
+                date=event["date"],
                 status=event["status"],
                 email=event["email"],
             )
@@ -99,23 +88,22 @@ def create_event(request: EventRequest):
 
         # Parse and validate event_date
         try:
-            event_date = datetime.strptime(request.event_date, "%Y-%m-%d").date()
+            event_date = datetime.strptime(request.date, "%Y-%m-%d").date()
         except ValueError:
             raise_http_exception(400, "Invalid date format. Use YYYY-MM-DD.")
 
         # Create the event folder in S3
-        folder = create_event_folder(request.photographer_name, event_date, request.event_name, event_id)
+        create_event_folder(request.username, str(event_date), request.name, event_id)
 
         # Save event details in DynamoDB with separate upload URLs and statuses
         event_item = {
             "event_id": event_id,
             "created_at": datetime.utcnow().isoformat(),
-            "event_name": request.event_name,
-            "event_date": str(event_date),
-            "photographer_name": request.photographer_name,
+            "name": request.name,
+            "date": str(event_date),
+            "username": request.username,
             "email": request.email,
             "phone": request.phone,
-            "folder": folder,
             "status": EventStatus.PENDING_UPLOAD,
         }
 
@@ -123,7 +111,6 @@ def create_event(request: EventRequest):
 
         return {
             "event_id": event_id,
-            "folder": folder,
             "message": "Event created successfully. Share the upload URLs with the photographer.",
         }
 
@@ -151,8 +138,8 @@ async def get_event_details(event_id: str, current_user: str = Depends(get_curre
         # Return the event summary
         event_summary = {
             "event_id": event["event_id"],
-            "event_name": event["event_name"],
-            "event_date": event["event_date"],
+            "name": event["name"],
+            "date": event["date"],
             "status": event["status"],
             "email": event["email"],
         }
@@ -181,8 +168,9 @@ async def upload_event_album(event_id: str, album: UploadFile = File(...)):
         if not event:
             raise_http_exception(404, "Event not found")
 
+        event_folder_path = generate_event_folder_path(event)
         # Define the S3 key (path) for the album file
-        s3_key = f"{event['folder']}{ALBUM_SUBFOLDER}{album.filename}"
+        s3_key = f"{event_folder_path}{ALBUM_SUBFOLDER}{album.filename}"
 
         # Upload the album file to S3 using the helper function
         upload_success = upload_file_to_s3(album.file, s3_key, album.content_type)
@@ -212,8 +200,10 @@ async def submit_guest(
         if not event:
             raise HTTPException(status_code=404, detail="Event not found")
 
+        event_folder_path = generate_event_folder_path(event)
+
         # Define the S3 key for the guest's photo
-        s3_key = f"{event['folder']}guest-submissions/{name}_{uuid.uuid4()}.jpg"
+        s3_key = f"{event_folder_path}guest-submissions/{name}_{uuid.uuid4()}.jpg"
 
         # Upload the guest's photo to S3
         upload_success = upload_file_to_s3(photo.file, s3_key, photo.content_type)
@@ -229,7 +219,7 @@ async def submit_guest(
         }
 
         # S3 key for guest list
-        guest_file_key = f"{event['folder']}guest-submissions/guest_list.json"
+        guest_file_key = f"{event_folder_path}guest-submissions/guest_list.json"
 
         # Append the new guest to the S3 file
         append_to_guest_list_in_s3(guest_file_key, guest_submission)
@@ -238,3 +228,26 @@ async def submit_guest(
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error submitting guest: {str(e)}")
+
+
+def generate_event_folder_path(event: dict) -> str:
+    """
+    Generate the folder path for an event based on the event details.
+
+    Args:
+        event (dict): A dictionary containing event details such as 'username', 'date', 'name', and 'id'.
+
+    Returns:
+        str: The folder path for the event.
+    """
+    if not all(key in event for key in ["username", "date", "name", "event_id"]):
+        raise ValueError("Event details are incomplete. 'username', 'date', 'name', and 'event_id' are required.")
+
+    return f"{event['username']}/{event['date']}/{event['name']}/{event['event_id']}/"
+
+
+def raise_http_exception(status_code: int, detail: str):
+    """
+    Helper function to raise HTTPException.
+    """
+    raise HTTPException(status_code=status_code, detail=detail)
