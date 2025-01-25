@@ -56,7 +56,6 @@ def get_user_events(current_user: str = Depends(get_current_user)):
     try:
         events = fetch_events_by_email(current_user)
 
-        # Map events to EventSummary format
         return [
             EventSummary(
                 event_id=event["event_id"],
@@ -74,28 +73,25 @@ def get_user_events(current_user: str = Depends(get_current_user)):
 @router.post("/")
 def create_event(request: EventRequest):
     """
-    Creates an event, saves details in DynamoDB, and generates pre-signed URLs.
+    Creates an event & saves details in DynamoDB.
 
     Args:
         request (EventRequest): The event details from the photographer.
 
     Returns:
-        dict: Information about the created event, pre-signed URLs, and S3 folder.
+        dict: A success message.
     """
     try:
         # Generate a unique event ID
         event_id = str(uuid.uuid4())
 
-        # Parse and validate event_date
         try:
             event_date = datetime.strptime(request.date, "%Y-%m-%d").date()
         except ValueError:
             raise_http_exception(400, "Invalid date format. Use YYYY-MM-DD.")
 
-        # Create the event folder in S3
         create_event_folder(request.username, str(event_date), request.name, event_id)
 
-        # Save event details in DynamoDB with separate upload URLs and statuses
         event_item = {
             "event_id": event_id,
             "created_at": datetime.utcnow().isoformat(),
@@ -110,8 +106,7 @@ def create_event(request: EventRequest):
         save_event(event_item)
 
         return {
-            "event_id": event_id,
-            "message": "Event created successfully. Share the upload URLs with the photographer.",
+            "message": "Event created successfully.",
         }
 
     except Exception as e:
@@ -180,7 +175,7 @@ async def upload_event_album(event_id: str, album: UploadFile = File(...)):
             update_event_status(event_id, EventStatus.ALBUM_UPLOADED)
             return JSONResponse(content={"message": "Album uploaded successfully!"}, status_code=200)
         else:
-            raise HTTPException(status_code=500, detail="Failed to upload the album to S3")
+            raise HTTPException(status_code=500, detail="Failed to upload the album")
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error uploading file: {str(e)}")
@@ -195,34 +190,28 @@ async def submit_guest(
 ):
     """ Handle the submission of a guest's details (name, phone, photo) and upload it to S3. """
     try:
-        # Fetch the event to get the folder path
         event = get_event_by_id(event_id)
         if not event:
             raise HTTPException(status_code=404, detail="Event not found")
 
         event_folder_path = generate_event_folder_path(event)
 
-        # Define the S3 key for the guest's photo
-        s3_key = f"{event_folder_path}guest-submissions/{name}_{uuid.uuid4()}.jpg"
+        guest_photo_s3_key = f"{event_folder_path}guest-submissions/{phone}_{uuid.uuid4()}.jpg"
 
-        # Upload the guest's photo to S3
-        upload_success = upload_file_to_s3(photo.file, s3_key, photo.content_type)
+        upload_success = upload_file_to_s3(photo.file, guest_photo_s3_key, photo.content_type)
 
         if not upload_success:
-            raise HTTPException(status_code=500, detail="Failed to upload the photo to S3")
+            raise HTTPException(status_code=500, detail="Failed to upload the photo")
 
-        # Prepare guest submission data (name, phone, photo URL)
         guest_submission = {
             "name": name,
             "phone": phone,
-            "photo_url": f"https://{BUCKET_NAME}.s3.amazonaws.com/{s3_key}",
+            "photo_url": f"https://{BUCKET_NAME}.s3.amazonaws.com/{guest_photo_s3_key}",
         }
 
-        # S3 key for guest list
-        guest_file_key = f"{event_folder_path}guest-submissions/guest_list.json"
+        guest_list_submissions_s3_key = f"{event_folder_path}guest-submissions/guest_list.json"
 
-        # Append the new guest to the S3 file
-        append_to_guest_list_in_s3(guest_file_key, guest_submission)
+        append_to_guest_list_in_s3(guest_list_submissions_s3_key, guest_submission)
 
         return {"message": "Guest submitted successfully!"}
 
