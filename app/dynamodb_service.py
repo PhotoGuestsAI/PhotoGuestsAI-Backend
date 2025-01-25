@@ -4,18 +4,15 @@ from boto3.dynamodb.conditions import Attr
 from botocore.exceptions import ClientError
 from dotenv import load_dotenv
 
-# Load environment variables for AWS credentials and region
 load_dotenv()
 
-# Initialize DynamoDB resource
 dynamodb = boto3.resource(
     "dynamodb",
     aws_access_key_id=os.getenv("AWS_ACCESS_KEY"),
     aws_secret_access_key=os.getenv("AWS_SECRET_KEY"),
-    region_name=os.getenv("AWS_REGION", "us-east-1"),
+    region_name=os.getenv("AWS_REGION"),
 )
 
-# Access the Events table in DynamoDB
 events_table = dynamodb.Table("Events")
 
 
@@ -50,7 +47,7 @@ def get_event_by_id(event_id: str):
     """
     try:
         response = events_table.get_item(Key={"event_id": event_id})
-        return response.get("Item")  # Return event if found
+        return response.get("Item")
     except Exception as e:
         raise Exception(f"Error fetching event by ID: {str(e)}")
 
