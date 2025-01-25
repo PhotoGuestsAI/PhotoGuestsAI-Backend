@@ -1,33 +1,29 @@
-import io
 import json
 import os
-import zipfile
+
+import boto3
 from botocore.exceptions import NoCredentialsError
 from dotenv import load_dotenv
-import boto3
 
-# Load environment variables from .env file
 load_dotenv()
 
-# Set up AWS S3 client with the credentials from environment variables
 s3_client = boto3.client(
     "s3",
     aws_access_key_id=os.getenv("AWS_ACCESS_KEY"),
     aws_secret_access_key=os.getenv("AWS_SECRET_KEY"),
-    region_name=os.getenv("AWS_REGION", "us-east-1"),
+    region_name=os.getenv("AWS_REGION"),
 )
 
 BUCKET_NAME = "photo-guests-events"
 
 
-def create_event_folder(photographer_name, event_date, event_name, event_id):
+def create_event_folder(username, event_date, event_name, event_id):
     """
     Create the S3 folder structure under the specified bucket.
     Creates subfolders for album, guest submissions, and personalized albums.
-    Also creates an empty album zip file in the 'album' folder.
 
     Args:
-        photographer_name (str): Photographer's name.
+        username (str): User's name.
         event_date (str): Event date in the format 'YYYY-MM-DD'.
         event_name (str): Name of the event.
         event_id (str): Unique event ID.
@@ -35,7 +31,7 @@ def create_event_folder(photographer_name, event_date, event_name, event_id):
     Returns:
         str: The folder path created on S3.
     """
-    folder_name = f"{photographer_name}/{event_date}/{event_name}/{event_id}/"
+    folder_name = f"{username}/{event_date}/{event_name}/{event_id}/"
 
     # List of subfolders to create under the event folder
     subfolders = ["album/", "guest-submissions/", "personalized-albums/"]
@@ -47,24 +43,6 @@ def create_event_folder(photographer_name, event_date, event_name, event_id):
             Key=full_path,
             ServerSideEncryption="aws:kms",  # Optional encryption for the folder
         )
-
-    # Create an empty event_album.zip file in the 'album' folder
-    empty_zip_file = io.BytesIO()  # In-memory bytes buffer
-    with zipfile.ZipFile(empty_zip_file, 'w', zipfile.ZIP_DEFLATED) as zipf:
-        pass  # Empty zip file, no files added
-
-    empty_zip_file.seek(0)  # Ensure the buffer is at the beginning
-
-    # Upload the empty zip file to the album folder on S3
-    zip_file_path = f"{folder_name}album/event_album.zip"
-    print(f"Creating empty zip file: {zip_file_path}")
-    s3_client.put_object(
-        Bucket=BUCKET_NAME,
-        Key=zip_file_path,
-        Body=empty_zip_file,
-        ContentType='application/zip',
-        ServerSideEncryption="aws:kms",  # Optional encryption
-    )
 
     return folder_name
 
