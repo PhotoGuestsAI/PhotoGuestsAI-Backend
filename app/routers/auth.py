@@ -19,32 +19,6 @@ class Token(BaseModel):
     token: str
 
 
-# Initialize OAuth2PasswordBearer to extract token from the Authorization header
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token")
-
-
-def get_current_user(token: str = Depends(oauth2_scheme)):
-    """
-    Validates the Google ID token sent by the UI and extracts the user email.
-    """
-    try:
-        # Validate the token using Google's public endpoint
-        response = requests.get(f"{GOOGLE_TOKEN_INFO_URL}{token}")
-
-        if response.status_code != 200:
-            raise HTTPException(status_code=401, detail="Invalid token")
-
-        user_info = response.json()
-
-        # Ensure the token audience matches the backend client ID
-        if user_info["aud"] != GOOGLE_CLIENT_ID:
-            raise HTTPException(status_code=401, detail="Invalid audience")
-
-        return user_info["email"]
-    except Exception as e:
-        raise HTTPException(status_code=401, detail=f"Could not validate credentials: {str(e)}")
-
-
 @router.post("/verify-token")
 async def verify_google_token(data: Token):
     """
@@ -74,3 +48,29 @@ async def verify_google_token(data: Token):
         }
     except Exception as e:
         raise HTTPException(status_code=401, detail=f"Token validation failed: {str(e)}")
+
+
+# Initialize OAuth2PasswordBearer to extract token from the Authorization header
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token")
+
+
+def get_current_user(token: str = Depends(oauth2_scheme)):
+    """
+    Validates the Google ID token sent by the UI and extracts the user email.
+    """
+    try:
+        # Validate the token using Google's public endpoint
+        response = requests.get(f"{GOOGLE_TOKEN_INFO_URL}{token}")
+
+        if response.status_code != 200:
+            raise HTTPException(status_code=401, detail="Invalid token")
+
+        user_info = response.json()
+
+        # Ensure the token audience matches the backend client ID
+        if user_info["aud"] != GOOGLE_CLIENT_ID:
+            raise HTTPException(status_code=401, detail="Invalid audience")
+
+        return user_info["email"]
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=f"Could not validate credentials: {str(e)}")
