@@ -1,16 +1,16 @@
-from fastapi import APIRouter, HTTPException, Depends
-from pydantic import BaseModel
+import os
+
 import requests
-import jwt
+from fastapi import APIRouter, HTTPException, Depends
 from fastapi.security import OAuth2PasswordBearer
-from datetime import datetime, timedelta
+from pydantic import BaseModel
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Constants
-GOOGLE_CLIENT_ID = "134801815902-ab4t528nqfnkadh4c93otdk80kcc1mhc.apps.googleusercontent.com"
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 GOOGLE_TOKEN_INFO_URL = "https://oauth2.googleapis.com/tokeninfo?id_token="
-SECRET_KEY = "your_secret_key"  # Replace with a strong secret key
-JWT_ALGORITHM = "HS256"
-JWT_EXPIRATION_MINUTES = 60
 
 router = APIRouter()
 
@@ -63,33 +63,14 @@ async def verify_google_token(data: Token):
         if user_info["aud"] != GOOGLE_CLIENT_ID:
             raise HTTPException(status_code=401, detail="Invalid audience")
 
-        # Return user details without generating a new token
         return {
             "user": {
                 "name": user_info["name"],
                 "email": user_info["email"],
                 "picture": user_info["picture"],
-                "token": data.token,  # Send the same token back to the client
+                "token": data.token,
+                # Send the same token back to the client (this way, I don't need to manage another token)
             }
         }
     except Exception as e:
         raise HTTPException(status_code=401, detail=f"Token validation failed: {str(e)}")
-
-
-def generate_jwt_token(email: str):
-    """
-    Generate a JWT token with an expiration time.
-    """
-    # expiration = datetime.utcnow() + timedelta(minutes=JWT_EXPIRATION_MINUTES)
-    payload = {
-        "email": email,
-        # "exp": expiration,
-    }
-    return jwt.encode(payload, SECRET_KEY, algorithm=JWT_ALGORITHM)
-
-
-def raise_http_exception(detail: str):
-    """
-    Helper function to raise HTTPException.
-    """
-    raise HTTPException(status_code=400, detail=detail)
