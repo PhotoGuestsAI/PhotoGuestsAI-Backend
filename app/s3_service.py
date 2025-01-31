@@ -120,5 +120,15 @@ def append_to_guest_list_in_s3(file_key, guest_submission):
         raise
 
 
-def generate_presigned_upload_url():
-    return None
+def get_guest_list_from_s3(event_path: str) -> list:
+    """
+    Retrieve and parse the guest list JSON from S3.
+    """
+    try:
+        guest_list_key = f"{event_path}guest-submissions/guest_list.json"
+        response = s3_client.get_object(Bucket=BUCKET_NAME, Key=guest_list_key)
+        guest_data = json.loads(response['Body'].read().decode("utf-8"))
+        return guest_data
+    except Exception as e:
+        print(f"Error fetching guest list: {e}")
+        return []
