@@ -3,7 +3,7 @@ import tempfile
 import shutil
 import requests
 from dotenv import load_dotenv
-from s3_service import download_file_from_s3, upload_file_to_s3
+from .s3_service import download_file_from_s3, upload_file_to_s3
 
 # Load environment variables from .env file
 load_dotenv()
@@ -20,7 +20,7 @@ BUCKET_NAME = os.getenv("EVENTS_BUCKET_NAME", "photo-guests-events")
 FACE_RECOGNITION_SERVICE_URL = os.getenv("FACE_RECOGNITION_MICRO_SERVICE_URL_DEV")
 
 
-def process_and_upload_album(username, event_date, event_name, event_id, relative_guest_photo_path, phone_number):
+def create_and_upload_personalized_albums(username, event_date, event_name, event_id, relative_guest_photo_path, phone_number):
     """
     Process the album for an event and upload the personalized version to S3.
 
@@ -134,20 +134,3 @@ def cleanup_temp_directory(temp_dir):
         print(f"Temporary directory cleaned: {temp_dir}")
     except Exception as e:
         print(f"Error cleaning up temp directory {temp_dir}: {e}")
-
-
-# Example Usage
-if __name__ == "__main__":
-    try:
-        result_path = process_and_upload_album(
-            username="PhotoGuestsAI",
-            event_date="2025-02-11",
-            event_name="test",
-            event_id="7ecdb37a-db5b-4cba-b685-cb06f384d4ce",
-            relative_guest_photo_path="/guest-submissions/0527747483_1ffc8e07-705d-49bc-b5de-b265b6e7ab45.jpg",
-            phone_number="0527747483"
-        )
-
-        print(f"Process completed. Personalized album available at: {result_path}")
-    except Exception as e:
-        print(f"Process failed: {e}")

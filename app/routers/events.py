@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from typing import List
+from typing import List, Dict
 
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Depends
 from pydantic import BaseModel
@@ -11,6 +11,7 @@ from .auth import get_current_user
 from ..dynamodb_service import save_event, fetch_events_by_email, get_event_by_id, update_event_status
 from ..enums.event_status import EventStatus
 from ..s3_service import create_event_folder, upload_file_to_s3, append_to_guest_list_in_s3
+from ..faceRecognitionIntegrationService import create_and_upload_personalized_albums
 
 router = APIRouter()
 
@@ -146,7 +147,8 @@ async def get_event_details(event_id: str, current_user: str = Depends(get_curre
 
 
 @router.post("/{event_id}/upload-event-album")
-async def upload_event_album(event_id: str, album: UploadFile = File(...)):
+async def upload_event_album(event_id: str, album: UploadFile = File(...),
+                             current_user: str = Depends(get_current_user)):
     """
     Handle the upload of album ZIP file and save it to S3 under the event's folder.
 
@@ -162,6 +164,12 @@ async def upload_event_album(event_id: str, album: UploadFile = File(...)):
         event = get_event_by_id(event_id)
         if not event:
             raise_http_exception(404, "Event not found")
+
+            if event["email"] != current_user:
+                raise HTTPException(
+                    status_code=403,
+                    detail="You are not authorized to access this event"
+                )
 
         event_folder_path = generate_event_folder_path(event)
         # Define the S3 key (path) for the album file
@@ -217,6 +225,37 @@ async def submit_guest(
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error submitting guest: {str(e)}")
+
+
+class AlbumProcessingRequest(BaseModel):
+    username: str
+    event_date: str
+    event_name: str
+    event_id: str
+    relative_guest_photo_path: str
+    phone_number: str
+
+
+@router.post('/personalized_albums')
+async def create_personalized_albums(request: AlbumProcessingRequest) -> Dict[str, str]:
+    """
+    Should have a specific authorization token to run this API
+    """
+    try:
+        # Call the function with the provided parameters
+        result_path = create_and_upload_personalized_albums(
+            username=request.username,
+            event_date=request.event_date,
+            event_name=request.event_name,
+            event_id=request.event_id,
+            relative_guest_photo_path=request.relative_guest_photo_path,
+            phone_number=request.phone_number
+        )
+
+        return {"message": "Processing completed", "personalized_album_s3_path": result_path}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 def generate_event_folder_path(event: dict) -> str:

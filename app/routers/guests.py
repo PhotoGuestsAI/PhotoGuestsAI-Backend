@@ -8,7 +8,6 @@ from ..s3_service import get_guest_list_from_s3
 
 router = APIRouter()
 
-# AWS S3 Configuration
 S3_BUCKET_NAME = "photo-guests-events"
 s3_client = boto3.client("s3")
 
@@ -69,6 +68,11 @@ def send_personalized_albums(event_id: str):
     """
     Retrieve guest phone numbers and send them their personalized album links via WhatsApp.
     """
+
+    """
+    Should have a specific authorization token to run this API
+    """
+
     try:
         # Fetch event details directly from the database instead of calling the API
         event = get_event_by_id(event_id)

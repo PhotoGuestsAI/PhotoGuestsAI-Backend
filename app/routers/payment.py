@@ -9,7 +9,6 @@ from .auth import get_current_user
 
 router = APIRouter()
 
-# PayPal SDK Configuration
 paypalrestsdk.configure({
     "mode": "live",
     "client_id": os.getenv("PAYPAL_CLIENT_ID"),
@@ -25,7 +24,7 @@ class EventData(BaseModel):
 
 
 @router.post("/create-payment")
-async def create_payment(event: EventData, user_email: str = Depends(get_current_user)):  # ✅ Use auth.py's method
+async def create_payment(event: EventData, user_email: str = Depends(get_current_user)):
     """Creates a PayPal payment and returns approval URL with authentication"""
 
     if event.email != user_email:
