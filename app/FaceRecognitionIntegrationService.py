@@ -17,7 +17,7 @@ os.makedirs(CUSTOM_TEMP_DIR, exist_ok=True)
 
 # AWS S3 Configuration
 BUCKET_NAME = os.getenv("EVENTS_BUCKET_NAME", "photo-guests-events")
-FACE_RECOGNITION_SERVICE_URL = os.getenv("FACE_RECOGNITION_SERVICE_URL", "http://localhost:5001/process")
+FACE_RECOGNITION_SERVICE_URL = os.getenv("FACE_RECOGNITION_MICRO_SERVICE_URL_DEV")
 
 
 def process_and_upload_album(username, event_date, event_name, event_id, relative_guest_photo_path, phone_number):
@@ -140,12 +140,12 @@ def cleanup_temp_directory(temp_dir):
 if __name__ == "__main__":
     try:
         result_path = process_and_upload_album(
-            username="Amit Lus",
-            event_date="2025-06-10",
-            event_name="badue_wedding",
-            event_id="b67a0b9d-ec29-4665-85f4-c5888bbceecc",
-            relative_guest_photo_path="/guest-submissions/roei_088ad4b7-2df5-41c6-9096-6de11889821b.jpg",
-            phone_number="1111111111"
+            username="PhotoGuestsAI",
+            event_date="2025-02-11",
+            event_name="test",
+            event_id="7ecdb37a-db5b-4cba-b685-cb06f384d4ce",
+            relative_guest_photo_path="/guest-submissions/0527747483_1ffc8e07-705d-49bc-b5de-b265b6e7ab45.jpg",
+            phone_number="0527747483"
         )
 
         print(f"Process completed. Personalized album available at: {result_path}")
