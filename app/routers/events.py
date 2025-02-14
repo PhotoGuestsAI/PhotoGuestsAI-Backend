@@ -153,6 +153,7 @@ async def upload_event_album(event_id: str, album: UploadFile = File(...),
     Handle the upload of album ZIP file and save it to S3 under the event's folder.
 
     Args:
+        current_user:
         event_id (str): The event ID for the album.
         album (UploadFile): The album zip file.
 
