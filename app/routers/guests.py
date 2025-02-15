@@ -1,19 +1,27 @@
+import os
+
 import boto3
 import requests
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Header
+from twilio.rest import Client
 
 from .events import generate_event_folder_path
 from ..dynamodb_service import get_event_by_id
 from ..s3_service import get_guest_list_from_s3
 
-router = APIRouter()
-
 S3_BUCKET_NAME = "photo-guests-events"
 s3_client = boto3.client("s3")
 
-# WhatsApp API Configuration
-WHATSAPP_API_URL = "https://graph.facebook.com/v21.0/568131496380879/messages"
-WHATSAPP_ACCESS_TOKEN = "EAAIn8MoJM3ABOZBN5CbsekDPlt083Q8aAvJmts7Y9jqcW5dhbcFRLi5f290WPlqihA2VdEYZBt7MeJaPTJtVNNuBlB7bKLpmcfc5eiGFK9JuM6WxfZBfmN2fZAXs1UDpfli3oP0duOr1FpmSXqZC8vdtTHwn4fxjslI10n5p6WZCeLoKSaIs0mKZBtSwCEstGoouFlJ1X6STAbz93wXY1gz4wZCyrw9dt0rxTNQZD"
+WHATSAPP_API_URL = os.getenv("WHATSAPP_API_URL")
+WHATSAPP_ACCESS_TOKEN = os.getenv("WHATSAPP_ACCESS_TOKEN")
+
+TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID", "your_account_sid")
+TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN", "your_auth_token")
+TWILIO_PHONE_NUMBER = os.getenv("TWILIO_PHONE_NUMBER", "+1234567890")
+
+twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+
+router = APIRouter()
 
 
 def generate_presigned_url(object_key: str, expiration: int = 60 * 24 * 14) -> str:
@@ -63,18 +71,77 @@ def send_whatsapp_message(event_name: str, phone_number: str, name: str, album_u
         return False
 
 
+# WhatsApp version
+# @router.post("/send-personalized-albums/")
+# def send_personalized_albums(event_id: str):
+#     """
+#     Retrieve guest phone numbers and send them their personalized album links via WhatsApp.
+#     """
+#
+#     """
+#     Should have a specific authorization token to run this API
+#     """
+#
+#     try:
+#         # Fetch event details directly from the database instead of calling the API
+#         event = get_event_by_id(event_id)
+#         if not event:
+#             raise HTTPException(status_code=404, detail="Event not found.")
+#
+#         event_path = generate_event_folder_path(event)
+#
+#         guests = get_guest_list_from_s3(event_path)
+#
+#         if not guests:
+#             raise HTTPException(status_code=404, detail="No guests found for this event.")
+#
+#         success_count = 0
+#
+#         for guest in guests:
+#             phone_number = guest.get("phone")
+#
+#             if not phone_number:
+#                 continue
+#
+#             name = guest.get("name")
+#
+#             if not name:
+#                 continue
+#
+#             object_key = f"{event_path}personalized-albums/{phone_number}_album.zip"
+#             presigned_url = generate_presigned_url(object_key)
+#
+#             if not presigned_url:
+#                 continue
+#
+#             if send_whatsapp_message(event["name"], phone_number, name, presigned_url):
+#                 success_count += 1
+#
+#         return {"message": f"Successfully sent {success_count}/{len(guests)} messages."}
+#
+#     except Exception as e:
+#         print(f"Error processing request: {e}")
+#         raise HTTPException(status_code=500, detail="An error occurred while processing the request.")
+
+
+# SMS VERSION
 @router.post("/send-personalized-albums/")
-def send_personalized_albums(event_id: str):
+def send_personalized_albums(
+        event_id: str,
+        authorization: str = Header(None)  # Require an Authorization Token
+):
     """
-    Retrieve guest phone numbers and send them their personalized album links via WhatsApp.
+    Retrieve guest phone numbers and send them their personalized album links via SMS.
+    Requires a specific authorization token to run this API.
     """
 
-    """
-    Should have a specific authorization token to run this API
-    """
+    # Validate Authorization Token
+    REQUIRED_TOKEN = os.getenv("TOKEN_FOR_EXPENSIVE_REQUESTS")
+    if authorization != REQUIRED_TOKEN:
+        raise HTTPException(status_code=401, detail="Unauthorized")
 
     try:
-        # Fetch event details directly from the database instead of calling the API
+        # Fetch event details directly from the database instead of calling an API
         event = get_event_by_id(event_id)
         if not event:
             raise HTTPException(status_code=404, detail="Event not found.")
@@ -92,24 +159,42 @@ def send_personalized_albums(event_id: str):
             phone_number = guest.get("phone")
 
             if not phone_number:
-                continue
+                continue  # Skip if no phone number
 
-            name = guest.get("name")
-
-            if not name:
-                continue
+            name = guest.get("name", "Guest")  # Default to 'Guest' if no name
 
             object_key = f"{event_path}personalized-albums/{phone_number}_album.zip"
             presigned_url = generate_presigned_url(object_key)
 
             if not presigned_url:
-                continue
+                continue  # Skip if no album URL
 
-            if send_whatsapp_message(event["name"], phone_number, name, presigned_url):
+            if send_sms_message(event["name"], phone_number, name, presigned_url):
                 success_count += 1
 
-        return {"message": f"Successfully sent {success_count}/{len(guests)} messages."}
+        return {"message": f"Successfully sent {success_count}/{len(guests)} SMS messages."}
 
     except Exception as e:
         print(f"Error processing request: {e}")
         raise HTTPException(status_code=500, detail="An error occurred while processing the request.")
+
+
+def send_sms_message(event_name: str, phone_number: str, name: str, album_url: str) -> bool:
+    """
+    Send a personalized SMS with the guest's name and album link using Twilio.
+    """
+    message_body = f"Hi {name}! 🎉 Your {event_name} album is ready. Download it here: {album_url}\nEnjoy your memories! 📸"
+
+    try:
+        message = twilio_client.messages.create(
+            body=message_body,
+            from_=TWILIO_PHONE_NUMBER,
+            to=phone_number
+        )
+
+        print(f"✅ SMS sent to {name} ({phone_number}) | SID: {message.sid}")
+        return True
+
+    except Exception as e:
+        print(f"❌ Error sending SMS to {name} ({phone_number}): {e}")
+        return False
