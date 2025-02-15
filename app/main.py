@@ -1,3 +1,5 @@
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .routers import events, guests, auth, payment
@@ -8,7 +10,11 @@ app = FastAPI()
 # CORS configuration - Allow frontend to interact with backend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # Frontend URL
+    allowed_origins=[
+        "http://localhost:3000",  # React local dev
+        "http://photoguests.com",  # Production frontend
+        "https://photoguests.com",  # Production frontend
+    ],
     allow_credentials=True,
     allow_methods=["*"],  # Allow all HTTP methods (GET, POST, etc.)
     allow_headers=["*"],  # Allow all headers
