@@ -7,3 +7,6 @@ python-jose
 python-decouple
 PyJWT
 paypalrestsdk
+dotenv
+python-multipart
+twilio
