@@ -12,8 +12,6 @@ from ..s3_service import create_event_folder, upload_file_to_s3, append_to_guest
 
 router = APIRouter()
 
-BUCKET_NAME = "photo-guests-events"
-
 
 # Request Model for Event Creation
 class EventRequest(BaseModel):
@@ -139,44 +137,6 @@ async def get_event_details(event_id: str, current_user: str = Depends(get_curre
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching event: {str(e)}")
-
-
-@router.post("/{event_id}/submit-guest")
-async def submit_guest(
-        event_id: str,
-        name: str = Form(...),
-        phone: str = Form(...),
-        photo: UploadFile = File(...)
-):
-    """ Handle the submission of a guest's details (name, phone, photo) and upload it to S3. """
-    try:
-        event = get_event_by_id(event_id)
-        if not event:
-            raise HTTPException(status_code=404, detail="Event not found")
-
-        event_folder_path = generate_event_folder_path(event)
-
-        guest_photo_s3_key = f"{event_folder_path}guest-submissions/{phone}_{uuid.uuid4()}.jpg"
-
-        upload_success = upload_file_to_s3(photo.file, guest_photo_s3_key, photo.content_type)
-
-        if not upload_success:
-            raise HTTPException(status_code=500, detail="Failed to upload the photo")
-
-        guest_submission = {
-            "name": name,
-            "phone": phone,
-            "photo_url": f"https://{BUCKET_NAME}.s3.amazonaws.com/{guest_photo_s3_key}",
-        }
-
-        guest_list_submissions_s3_key = f"{event_folder_path}guest-submissions/guest_list.json"
-
-        append_to_guest_list_in_s3(guest_list_submissions_s3_key, guest_submission)
-
-        return {"message": "Guest submitted successfully!"}
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error submitting guest: {str(e)}")
 
 
 def generate_event_folder_path(event: dict) -> str:
