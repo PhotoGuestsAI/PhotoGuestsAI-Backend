@@ -1,22 +1,17 @@
 import uuid
 from datetime import datetime
-from typing import List, Dict
+from typing import List
 
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Depends
 from pydantic import BaseModel
-from starlette.responses import JSONResponse
 
 from .auth import get_current_user
-
-from ..dynamodb_service import save_event, fetch_events_by_email, get_event_by_id, update_event_status
+from ..dynamodb_service import save_event, fetch_events_by_email, get_event_by_id
 from ..enums.event_status import EventStatus
 from ..s3_service import create_event_folder, upload_file_to_s3, append_to_guest_list_in_s3
-from ..faceRecognitionIntegrationService import create_and_upload_personalized_albums
 
 router = APIRouter()
 
-# Constants
-ALBUM_SUBFOLDER = "album/"
 BUCKET_NAME = "photo-guests-events"
 
 
@@ -89,7 +84,7 @@ def create_event(request: EventRequest):
         try:
             event_date = datetime.strptime(request.date, "%Y-%m-%d").date()
         except ValueError:
-            raise_http_exception(400, "Invalid date format. Use YYYY-MM-DD.")
+            raise HTTPException(400, "Invalid date format. Use YYYY-MM-DD.")
 
         create_event_folder(request.username, str(event_date), request.name, event_id)
 
@@ -122,7 +117,7 @@ async def get_event_details(event_id: str, current_user: str = Depends(get_curre
     try:
         event = get_event_by_id(event_id)
         if not event:
-            raise_http_exception(404, "Event not found")
+            raise HTTPException(404, "Event not found")
 
         # Authorization check: ensure the logged-in user is the event creator
         if event["email"] != current_user:
@@ -144,50 +139,6 @@ async def get_event_details(event_id: str, current_user: str = Depends(get_curre
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching event: {str(e)}")
-
-
-@router.post("/{event_id}/upload-event-album")
-async def upload_event_album(event_id: str, album: UploadFile = File(...),
-                             current_user: str = Depends(get_current_user)):
-    """
-    Handle the upload of album ZIP file and save it to S3 under the event's folder.
-
-    Args:
-        current_user:
-        event_id (str): The event ID for the album.
-        album (UploadFile): The album zip file.
-
-    Returns:
-        dict: Success message if the file was uploaded successfully.
-    """
-    try:
-        # Fetch the event to get the folder path
-        event = get_event_by_id(event_id)
-        if not event:
-            raise_http_exception(404, "Event not found")
-
-            if event["email"] != current_user:
-                raise HTTPException(
-                    status_code=403,
-                    detail="You are not authorized to access this event"
-                )
-
-        event_folder_path = generate_event_folder_path(event)
-        # Define the S3 key (path) for the album file
-        s3_key = f"{event_folder_path}{ALBUM_SUBFOLDER}{album.filename}"
-
-        # Upload the album file to S3 using the helper function
-        upload_success = upload_file_to_s3(album.file, s3_key, album.content_type)
-
-        if upload_success:
-            # Update the event status to reflect the album upload status
-            update_event_status(event_id, EventStatus.ALBUM_UPLOADED)
-            return JSONResponse(content={"message": "Album uploaded successfully!"}, status_code=200)
-        else:
-            raise HTTPException(status_code=500, detail="Failed to upload the album")
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error uploading file: {str(e)}")
 
 
 @router.post("/{event_id}/submit-guest")
@@ -228,37 +179,6 @@ async def submit_guest(
         raise HTTPException(status_code=500, detail=f"Error submitting guest: {str(e)}")
 
 
-class AlbumProcessingRequest(BaseModel):
-    username: str
-    event_date: str
-    event_name: str
-    event_id: str
-    relative_guest_photo_path: str
-    phone_number: str
-
-
-@router.post('/personalized_albums')
-async def create_personalized_albums(request: AlbumProcessingRequest) -> Dict[str, str]:
-    """
-    Should have a specific authorization token to run this API
-    """
-    try:
-        # Call the function with the provided parameters
-        result_path = create_and_upload_personalized_albums(
-            username=request.username,
-            event_date=request.event_date,
-            event_name=request.event_name,
-            event_id=request.event_id,
-            relative_guest_photo_path=request.relative_guest_photo_path,
-            phone_number=request.phone_number
-        )
-
-        return {"message": "Processing completed", "personalized_album_s3_path": result_path}
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
 def generate_event_folder_path(event: dict) -> str:
     """
     Generate the folder path for an event based on the event details.
@@ -273,10 +193,3 @@ def generate_event_folder_path(event: dict) -> str:
         raise ValueError("Event details are incomplete. 'username', 'date', 'name', and 'event_id' are required.")
 
     return f"{event['username']}/{event['date']}/{event['name']}/{event['event_id']}/"
-
-
-def raise_http_exception(status_code: int, detail: str):
-    """
-    Helper function to raise HTTPException.
-    """
-    raise HTTPException(status_code=status_code, detail=detail)
