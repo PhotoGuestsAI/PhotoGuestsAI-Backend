@@ -2,7 +2,7 @@ import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .routers import events, guests, auth, payment
+from .routers import events, guests, albums, auth, payment
 
 # Initialize the FastAPI app
 app = FastAPI()
@@ -23,6 +23,7 @@ app.add_middleware(
 # Include routers for different sections of the app
 app.include_router(events.router, prefix="/events", tags=["events"])
 app.include_router(guests.router, prefix="/guests", tags=["guests"])
+app.include_router(guests.router, prefix="/albums", tags=["albums"])
 app.include_router(auth.router, prefix="/auth", tags=["auth"])
 app.include_router(payment.router, prefix="/payment", tags=["payment"])  # Corrected this line!
 
