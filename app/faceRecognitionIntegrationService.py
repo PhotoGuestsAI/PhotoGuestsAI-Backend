@@ -20,17 +20,12 @@ BUCKET_NAME = os.getenv("EVENTS_BUCKET_NAME", "photo-guests-events")
 FACE_RECOGNITION_SERVICE_URL = os.getenv("FACE_RECOGNITION_MICRO_SERVICE_URL_DEV")
 
 
-def create_and_upload_personalized_albums(username, event_date, event_name, event_id, relative_guest_photo_path,
-                                          phone_number):
+def create_and_upload_personalized_albums(event_prefix, phone_number):
     """
     Process the album for an event and upload the personalized version to S3.
 
     Args:
-        username (str): Username of the event organizer.
-        event_date (str): Event date in the format 'YYYY-MM-DD'.
-        event_name (str): Name of the event.
-        event_id (str): Unique event ID.
-        relative_guest_photo_path (str): Relative path to the guest's photo.
+        event_prefix (str): The prefix of the event (username/event_date/event_name/event_id/
         phone_number (str): Guest's phone number.
 
     Returns:
@@ -39,9 +34,9 @@ def create_and_upload_personalized_albums(username, event_date, event_name, even
     temp_dir = tempfile.mkdtemp(dir=CUSTOM_TEMP_DIR)
 
     try:
-        base_path = f"{username}/{event_date}/{event_name}/{event_id}/"
+        base_path = f"{event_prefix.split("/")[0]}/{event_prefix.split("/")[1]}/{event_prefix.split("/")[2]}/{event_prefix.split("/")[3]}/"
         event_album_s3_path = f"{base_path}album/event_album.zip"
-        guest_photo_s3_path = f"{base_path}{relative_guest_photo_path.lstrip('/')}"  # Construct full S3 path
+        guest_photo_s3_path = f"{base_path}guest-submissions/"  # Construct full S3 path
         personalized_album_s3_path = f"{base_path}personalized-albums/{phone_number}.zip"
 
         print(f"Starting processing for album: {event_album_s3_path}")
