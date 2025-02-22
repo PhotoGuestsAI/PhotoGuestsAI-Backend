@@ -22,17 +22,6 @@ class EventRequest(BaseModel):
     username: str
 
 
-# Full Event Model
-class Event(BaseModel):
-    event_id: str
-    name: str
-    date: str
-    status: str
-    username: str
-    email: str
-    phone: str
-
-
 # Smaller Event Model (for listing events)
 class EventSummary(BaseModel):
     event_id: str
@@ -76,9 +65,7 @@ def create_event(request: EventRequest):
         dict: A success message.
     """
     try:
-        # Generate a unique event ID
         event_id = str(uuid.uuid4())
-
         try:
             event_date = datetime.strptime(request.date, "%Y-%m-%d").date()
         except ValueError:
@@ -124,7 +111,6 @@ async def get_event_details(event_id: str, current_user: str = Depends(get_curre
                 detail="You are not authorized to access this event"
             )
 
-        # Return the event summary
         event_summary = {
             "event_id": event["event_id"],
             "name": event["name"],
