@@ -1,15 +1,16 @@
+import io
 from typing import Dict
 
 from fastapi import APIRouter, HTTPException, UploadFile, File, Depends
 from pydantic import BaseModel
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, StreamingResponse
 
 from .auth import get_current_user
 from .events import generate_event_folder_path
 from ..dynamodb_service import get_event_by_id, update_event_status
 from ..enums.event_status import EventStatus
 from ..faceRecognitionIntegrationService import create_and_upload_personalized_albums
-from ..s3_service import upload_file_to_s3
+from ..s3_service import upload_file_to_s3, download_file_as_bytes
 
 router = APIRouter()
 
@@ -84,40 +85,31 @@ async def create_personalized_albums(request: AlbumProcessingRequest) -> Dict[st
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/{event_id}/get-personalized-album")
-async def get_personalized_album(event_id: str, password: str):
+@router.get("/get-personalized-album/{event_id}/{guest_uuid}", response_class=StreamingResponse)
+async def get_personalized_album(event_id: str, guest_uuid: str):
     """
-    Handle the upload of album ZIP file and save it to S3 under the event's folder.
+    Retrieve the personalized album ZIP file for a guest from S3.
 
     Args:
-        current_user:
         event_id (str): The event ID for the album.
-        album (UploadFile): The album zip file.
+        guest_uuid (str): The guest UUID of the personalized album.
 
     Returns:
-        dict: Success message if the file was uploaded successfully.
+        StreamingResponse: The personalized album ZIP file.
     """
+    event = get_event_by_id(event_id)
+    event_folder_path = generate_event_folder_path(event)
+    s3_key = f"{event_folder_path}personalized-albums/{guest_uuid.split("_")[0]}.zip"
+
     try:
-        event = get_event_by_id(event_id)
-        if not event:
-            raise HTTPException(404, "Event not found")
-
-        if event["email"] != current_user:
-            raise HTTPException(
-                status_code=403,
-                detail="You are not authorized to access this event"
-            )
-
-        event_folder_path = generate_event_folder_path(event)
-        s3_key = f"{event_folder_path}album/{album.filename}"
-
-        upload_success = upload_file_to_s3(album.file, s3_key, album.content_type)
-
-        if upload_success:
-            update_event_status(event_id, EventStatus.ALBUM_UPLOADED)
-            return JSONResponse(content={"message": "Album uploaded successfully!"}, status_code=200)
-        else:
-            raise HTTPException(status_code=500, detail="Failed to upload the album")
-
+        file_data = download_file_as_bytes(s3_key)
+        if not file_data:
+            raise HTTPException(status_code=404, detail="Album not found")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error uploading file: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error retrieving album: {str(e)}")
+
+    return StreamingResponse(
+        io.BytesIO(file_data),
+        media_type="application/zip",
+        headers={"Content-Disposition": f"attachment; filename={guest_uuid}.zip"}
+    )
