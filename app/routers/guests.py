@@ -68,10 +68,9 @@ async def submit_guest(
             raise HTTPException(status_code=500, detail="Failed to upload the photo")
 
         guest_submission = {
-            "uuid": guest_uuid,
             "name": name,
             "phone": phone,
-            "photo_url": f"https://{BUCKET_NAME}.s3.amazonaws.com/{guest_photo_s3_key}"        }
+            "photo_url": f"https://{BUCKET_NAME}.s3.amazonaws.com/{guest_photo_s3_key}"}
 
         guest_list_submissions_s3_key = f"{event_folder_path}guest-submissions/guest_list.json"
 
@@ -87,7 +86,7 @@ async def submit_guest(
 @router.post("/send-personalized-albums/")
 def send_personalized_albums(
         event_id: str,
-        authorization: str = Header(None)  # Require an Authorization Token
+        authorization: str = Header(None)
 ):
     """
     Retrieve guest phone numbers and send them their personalized album links via SMS.
@@ -122,13 +121,11 @@ def send_personalized_albums(
 
             name = guest.get("name", "Guest")
 
-            object_key = f"{event_path}personalized-albums/{phone_number}_album.zip"
-            presigned_url = generate_presigned_url(object_key)
+            guest_uuid = guest.get("photo_url").split("/")[-1].rsplit(".", 1)[0]
 
-            if not presigned_url:
-                continue
+            personal_album_link = f"http://localhost:8000/albums/get-personalized-album/{event_id}/{guest_uuid}" # TODO: use env variable for the IP address
 
-            if send_sms_message(event["name"], phone_number, name, guest.get("guest_uuid"), presigned_url):
+            if send_sms_message(event["name"], phone_number, name, personal_album_link):
                 success_count += 1
 
         return {"message": f"Successfully sent {success_count}/{len(guests)} SMS messages."}
@@ -138,11 +135,11 @@ def send_personalized_albums(
         raise HTTPException(status_code=500, detail="An error occurred while processing the request.")
 
 
-def send_sms_message(event_name: str, phone_number: str, name: str, guest_uuid: str, album_url: str) -> bool:
+def send_sms_message(event_name: str, phone_number: str, name: str, personal_album_endpoint: str) -> bool:
     """
     Send a personalized SMS with the guest's name and album link using Twilio.
     """
-    message_body = f"Hi {name}! 🎉 Your {event_name} album is ready. Download it here: {album_url}\n Enter this password to view it {guest_uuid}.\n Enjoy your memories! 📸"
+    message_body = f"Hi {name}! 🎉 Your {event_name} album is ready. Link to download as zip file: {personal_album_endpoint}\n Enjoy your memories! 📸"
 
     try:
         message = twilio_client.messages.create(
