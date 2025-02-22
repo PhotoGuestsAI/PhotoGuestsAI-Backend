@@ -132,3 +132,22 @@ def get_guest_list_from_s3(event_path: str) -> list:
     except Exception as e:
         print(f"Error fetching guest list: {e}")
         return []
+
+
+def download_file_as_bytes(s3_key):
+    """
+    Download a file from S3 and return its content as bytes.
+
+    Args:
+        s3_key (str): The file's S3 key (path)
+
+    Returns:
+        bytes: The content of the file.
+    """
+    try:
+        file_object = s3_client.get_object(Bucket=BUCKET_NAME, Key=s3_key)
+        return file_object['Body'].read()
+    except NoCredentialsError:
+        raise Exception("Credentials not available")
+    except Exception as e:
+        raise Exception(f"Error downloading file from S3: {str(e)}")
