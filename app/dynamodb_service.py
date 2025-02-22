@@ -16,8 +16,6 @@ dynamodb = boto3.resource(
 events_table = dynamodb.Table("Events")
 
 
-# === Event-related database operations ===
-
 def fetch_events_by_email(email: str):
     """
     Fetch all events for a specific user by email from DynamoDB.
