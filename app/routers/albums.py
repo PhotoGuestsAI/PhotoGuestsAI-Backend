@@ -1,7 +1,7 @@
 import io
-from typing import Dict
+import os
 
-from fastapi import APIRouter, HTTPException, UploadFile, File, Depends
+from fastapi import APIRouter, HTTPException, UploadFile, File, Depends, Header
 from pydantic import BaseModel
 from starlette.responses import JSONResponse, StreamingResponse
 
@@ -55,27 +55,25 @@ async def upload_event_album(event_id: str, album: UploadFile = File(...),
         raise HTTPException(status_code=500, detail=f"Error uploading file: {str(e)}")
 
 
-class AlbumProcessingRequest(BaseModel):
-    username: str
-    event_date: str
-    event_name: str
-    event_id: str
-    relative_guest_photo_path: str
+class PersonalizedAlbumRequest(BaseModel):
+    event_prefix: str
     phone_number: str
 
 
 @router.post('/personalized_albums')
-async def create_personalized_albums(request: AlbumProcessingRequest) -> Dict[str, str]:
+async def create_personalized_albums(request: PersonalizedAlbumRequest, authorization: str = Header(None)
+                                     ) -> dict:  # We run it manually
     """
     Should have a specific authorization token to run this API
     """
+    # Validate Authorization Token
+    REQUIRED_TOKEN = os.getenv("TOKEN_FOR_EXPENSIVE_REQUESTS")
+    if authorization != REQUIRED_TOKEN:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
     try:
         result_path = create_and_upload_personalized_albums(
-            username=request.username,
-            event_date=request.event_date,
-            event_name=request.event_name,
-            event_id=request.event_id,
-            relative_guest_photo_path=request.relative_guest_photo_path,
+            request.event_prefix,
             phone_number=request.phone_number
         )
 
@@ -86,7 +84,7 @@ async def create_personalized_albums(request: AlbumProcessingRequest) -> Dict[st
 
 
 @router.get("/get-personalized-album/{event_id}/{guest_uuid}", response_class=StreamingResponse)
-async def get_personalized_album(event_id: str, guest_uuid: str):
+async def get_personalized_album(event_id: str, guest_uuid: str):  # Reaching from the SMS messages
     """
     Retrieve the personalized album ZIP file for a guest from S3.
 
