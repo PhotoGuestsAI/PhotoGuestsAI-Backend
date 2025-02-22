@@ -20,7 +20,8 @@ BUCKET_NAME = os.getenv("EVENTS_BUCKET_NAME", "photo-guests-events")
 FACE_RECOGNITION_SERVICE_URL = os.getenv("FACE_RECOGNITION_MICRO_SERVICE_URL_DEV")
 
 
-def create_and_upload_personalized_albums(username, event_date, event_name, event_id, relative_guest_photo_path, phone_number):
+def create_and_upload_personalized_albums(username, event_date, event_name, event_id, relative_guest_photo_path,
+                                          phone_number):
     """
     Process the album for an event and upload the personalized version to S3.
 
@@ -38,11 +39,10 @@ def create_and_upload_personalized_albums(username, event_date, event_name, even
     temp_dir = tempfile.mkdtemp(dir=CUSTOM_TEMP_DIR)
 
     try:
-        # Construct the S3 paths
         base_path = f"{username}/{event_date}/{event_name}/{event_id}/"
         event_album_s3_path = f"{base_path}album/event_album.zip"
         guest_photo_s3_path = f"{base_path}{relative_guest_photo_path.lstrip('/')}"  # Construct full S3 path
-        personalized_album_s3_path = f"{base_path}personalized-albums/{phone_number}_album.zip"
+        personalized_album_s3_path = f"{base_path}personalized-albums/{phone_number}.zip"
 
         print(f"Starting processing for album: {event_album_s3_path}")
 
@@ -84,7 +84,6 @@ def create_and_upload_personalized_albums(username, event_date, event_name, even
         raise
 
     finally:
-        # Cleanup Temporary Directory
         print("Cleaning up temporary files...")
         cleanup_temp_directory(temp_dir)
 
