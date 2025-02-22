@@ -87,7 +87,7 @@ async def submit_guest(
 def send_personalized_albums(
         event_id: str,
         authorization: str = Header(None)
-):
+):  # Sent manually
     """
     Retrieve guest phone numbers and send them their personalized album links via SMS.
     Requires a specific authorization token to run this API.
@@ -123,7 +123,7 @@ def send_personalized_albums(
 
             guest_uuid = guest.get("photo_url").split("/")[-1].rsplit(".", 1)[0]
 
-            personal_album_link = f"http://localhost:8000/albums/get-personalized-album/{event_id}/{guest_uuid}" # TODO: use env variable for the IP address
+            personal_album_link = f"http://localhost:8000/albums/get-personalized-album/{event_id}/{guest_uuid}"  # TODO: use env variable for the IP address
 
             if send_sms_message(event["name"], phone_number, name, personal_album_link):
                 success_count += 1
@@ -156,57 +156,6 @@ def send_sms_message(event_name: str, phone_number: str, name: str, personal_alb
         return False
 
 # WhatsApp version
-# @router.post("/send-personalized-albums/")
-# def send_personalized_albums(event_id: str):
-#     """
-#     Retrieve guest phone numbers and send them their personalized album links via WhatsApp.
-#     """
-#
-#     """
-#     Should have a specific authorization token to run this API
-#     """
-#
-#     try:
-#         # Fetch event details directly from the database instead of calling the API
-#         event = get_event_by_id(event_id)
-#         if not event:
-#             raise HTTPException(status_code=404, detail="Event not found.")
-#
-#         event_path = generate_event_folder_path(event)
-#
-#         guests = get_guest_list_from_s3(event_path)
-#
-#         if not guests:
-#             raise HTTPException(status_code=404, detail="No guests found for this event.")
-#
-#         success_count = 0
-#
-#         for guest in guests:
-#             phone_number = guest.get("phone")
-#
-#             if not phone_number:
-#                 continue
-#
-#             name = guest.get("name")
-#
-#             if not name:
-#                 continue
-#
-#             object_key = f"{event_path}personalized-albums/{phone_number}_album.zip"
-#             presigned_url = generate_presigned_url(object_key)
-#
-#             if not presigned_url:
-#                 continue
-#
-#             if send_whatsapp_message(event["name"], phone_number, name, presigned_url):
-#                 success_count += 1
-#
-#         return {"message": f"Successfully sent {success_count}/{len(guests)} messages."}
-#
-#     except Exception as e:
-#         print(f"Error processing request: {e}")
-#         raise HTTPException(status_code=500, detail="An error occurred while processing the request.")
-
 
 # def send_whatsapp_message(event_name: str, phone_number: str, name: str, album_url: str) -> bool:
 #     """
