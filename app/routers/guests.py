@@ -1,6 +1,5 @@
 import os
 import uuid
-from typing import Any
 
 import boto3
 from fastapi import APIRouter, HTTPException, Header, Form, UploadFile, File
@@ -25,22 +24,6 @@ twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
 BUCKET_NAME = "photo-guests-events"
 
 router = APIRouter()
-
-
-def generate_presigned_url(object_key: str, expiration: int = 60 * 24 * 14) -> Any | None:
-    """
-    Generate a pre-signed URL for accessing a private file in S3.
-    """
-    try:
-        url = s3_client.generate_presigned_url(
-            "get_object",
-            Params={"Bucket": S3_BUCKET_NAME, "Key": object_key},
-            ExpiresIn=expiration,
-        )
-        return url
-    except Exception as e:
-        print(f"❌ Error generating pre-signed URL: {e}")
-        return None
 
 
 @router.post("/{event_id}/submit-guest")
