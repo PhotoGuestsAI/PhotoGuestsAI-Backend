@@ -123,7 +123,7 @@ def send_personalized_albums(
 
             guest_uuid = guest.get("photo_url").split("/")[-1].rsplit(".", 1)[0]
 
-            personal_album_link = f"http://localhost:8000/albums/get-personalized-album/{event_id}/{guest_uuid}"  # TODO: use env variable for the IP address
+            personal_album_link = f"http://localhost:8000/albums/get-personalized-album/{event_id}/{phone_number}/{guest_uuid}"  # TODO: use env variable for the IP address
 
             if send_sms_message(event["name"], phone_number, name, personal_album_link):
                 success_count += 1
