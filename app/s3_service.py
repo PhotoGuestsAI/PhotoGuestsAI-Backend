@@ -2,6 +2,7 @@ import json
 import os
 
 import boto3
+from botocore.config import Config
 from botocore.exceptions import NoCredentialsError
 from dotenv import load_dotenv
 
@@ -12,6 +13,7 @@ s3_client = boto3.client(
     aws_access_key_id=os.getenv("AWS_ACCESS_KEY"),
     aws_secret_access_key=os.getenv("AWS_SECRET_KEY"),
     region_name=os.getenv("AWS_REGION"),
+    config=Config(signature_version="s3v4")
 )
 
 BUCKET_NAME = "photo-guests-events"
@@ -45,6 +47,70 @@ def create_event_folder(username, event_date, event_name, event_id):
         )
 
     return folder_name
+
+
+def upload_images_to_s3(image_paths, base_s3_path):
+    """
+    Upload multiple images to S3 instead of a ZIP file.
+
+    Args:
+        image_paths (list): List of local image file paths.
+        base_s3_path (str): The base path in S3 where images should be stored.
+
+    Returns:
+        list: List of S3 paths for the uploaded images.
+    """
+    uploaded_image_urls = []
+
+    for image_path in image_paths:
+        try:
+            image_filename = os.path.basename(image_path)
+            s3_key = f"{base_s3_path}/{image_filename}"
+
+            # Upload each image individually
+            with open(image_path, "rb") as image_file:
+                s3_client.upload_fileobj(
+                    image_file,
+                    "photo-guests-events",
+                    s3_key,
+                    ExtraArgs={
+                        "ContentType": "image/jpeg",  # Ensure correct content type
+                        "ServerSideEncryption": "aws:kms"  # Optional encryption
+                    }
+                )
+
+            # Generate a pre-signed URL for accessing the uploaded image
+            presigned_url = generate_presigned_url(s3_key)
+            uploaded_image_urls.append(presigned_url)
+
+        except NoCredentialsError:
+            raise Exception("AWS Credentials not available")
+        except Exception as e:
+            raise Exception(f"Error uploading image {image_path}: {str(e)}")
+
+    return uploaded_image_urls
+
+
+def generate_presigned_url(s3_key):
+    """
+    Generate a pre-signed URL for accessing an S3 object.
+
+    Args:
+        s3_key (str): The key (path) of the object in S3.
+
+    Returns:
+        str: A pre-signed URL for the object.
+    """
+    try:
+        url = s3_client.generate_presigned_url(
+            "get_object",
+            Params={"Bucket": "photo-guests-events", "Key": s3_key},
+            ExpiresIn=3600  # URL expires in 1 hour
+        )
+        return url
+    except Exception as e:
+        print(f"Error generating pre-signed URL: {e}")
+        return None
 
 
 def upload_file_to_s3(file, file_name, content_type):
