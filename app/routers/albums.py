@@ -121,7 +121,7 @@ async def get_personalized_album(event_id: str, phone_number: str, guest_uuid: s
         raise HTTPException(status_code=403, detail="Guest not authorized or not found.")
 
     album_filename = f"{phone_number}.zip"
-    s3_key = f"{event_folder_path}personalized-albums/{album_filename}"
+    s3_key = f"{event_folder_path}personalized-albums/{phone_number}/{album_filename}"
 
     try:
         file_data = download_file_as_bytes(s3_key)
