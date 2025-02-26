@@ -110,11 +110,14 @@ async def get_personalized_album(event_id: str, phone_number: str, guest_uuid: s
     s3_key = f"{event_folder_path}personalized-albums/{phone_number}/{album_filename}"
 
     try:
+        s3_client.head_object(Bucket=BUCKET_NAME, Key=s3_key)
         file_data = download_file_as_bytes(s3_key)
-        if not file_data:
-            raise HTTPException(status_code=404, detail="Album not found.")
+    except s3_client.exceptions.ClientError as e:
+        if e.response['Error']['Code'] == "404":
+            raise HTTPException(404, "Album not found.")
+        raise HTTPException(500, f"Error retrieving album: {str(e)}")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error retrieving album: {str(e)}")
+        raise HTTPException(500, f"Unexpected error: {str(e)}")
 
     return StreamingResponse(
         io.BytesIO(file_data),
