@@ -1,6 +1,5 @@
 import io
 import os
-from typing import Any
 
 from fastapi import APIRouter, HTTPException, UploadFile, File, Depends, Header
 from pydantic import BaseModel
@@ -8,6 +7,7 @@ from starlette.responses import JSONResponse, StreamingResponse
 
 from .auth import get_current_user
 from .events import generate_event_folder_path
+from .guests import validate_guest_by_uuid_and_phone_number
 from ..dynamodb_service import get_event_by_id, update_event_status
 from ..enums.event_status import EventStatus
 from ..faceRecognitionIntegrationService import create_and_upload_personalized_albums
@@ -104,21 +104,7 @@ async def get_personalized_album(event_id: str, phone_number: str, guest_uuid: s
     event = get_event_by_id(event_id)
     event_folder_path = generate_event_folder_path(event)
 
-    guests = get_guest_list_from_s3(event_folder_path)
-    if not guests:
-        raise HTTPException(status_code=404, detail="No guests found for this event.")
-
-    matching_guest = next(
-        (
-            g for g in guests
-            if g.get("phone") == phone_number
-               and os.path.splitext(g.get("photo_url", "").split("/")[-1].split("_")[-1])[0] == guest_uuid
-        ),
-        None
-    )
-
-    if not matching_guest:
-        raise HTTPException(status_code=403, detail="Guest not authorized or not found.")
+    await validate_guest_by_uuid_and_phone_number(event_folder_path, guest_uuid, phone_number)
 
     album_filename = f"{phone_number}.zip"
     s3_key = f"{event_folder_path}personalized-albums/{phone_number}/{album_filename}"
@@ -153,6 +139,8 @@ async def get_personalized_album_photos(event_id: str, phone_number: str, guest_
 
     event = get_event_by_id(event_id)
     event_folder_path = generate_event_folder_path(event)
+
+    await validate_guest_by_uuid_and_phone_number(event_folder_path, guest_uuid, phone_number)
 
     s3_prefix = f"{event_folder_path}personalized-albums/{phone_number}/"
 

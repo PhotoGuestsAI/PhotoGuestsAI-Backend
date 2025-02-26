@@ -138,6 +138,7 @@ def send_sms_message(event_name: str, phone_number: str, name: str, personal_alb
         print(f"❌ Error sending SMS to {name} ({phone_number}): {e}")
         return False
 
+
 # WhatsApp version
 
 # def send_whatsapp_message(event_name: str, phone_number: str, name: str, album_url: str) -> bool:
@@ -169,3 +170,19 @@ def send_sms_message(event_name: str, phone_number: str, name: str, personal_alb
 #     except Exception as e:
 #         print(f"❌ Error sending WhatsApp message: {e}")
 #         return False
+
+
+async def validate_guest_by_uuid_and_phone_number(event_folder_path, guest_uuid, phone_number):
+    guests = get_guest_list_from_s3(event_folder_path)
+    if not guests:
+        raise HTTPException(status_code=404, detail="No guests found for this event.")
+    matching_guest = next(
+        (
+            g for g in guests
+            if g.get("phone") == phone_number
+               and os.path.splitext(g.get("photo_url", "").split("/")[-1].split("_")[-1])[0] == guest_uuid
+        ),
+        None
+    )
+    if not matching_guest:
+        raise HTTPException(status_code=403, detail="Guest not authorized or not found.")
