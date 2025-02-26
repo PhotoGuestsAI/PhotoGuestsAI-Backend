@@ -150,13 +150,10 @@ async def get_personalized_album_photos(event_id: str, phone_number: str, guest_
     # List all images in the guest's folder
     try:
         response = s3_client.list_objects_v2(Bucket="photo-guests-events", Prefix=s3_prefix)
-        if "Contents" not in response:
-            raise HTTPException(status_code=404, detail="No images found.")
 
-        # Generate pre-signed URLs for each image
         photos = [
             generate_presigned_url(obj["Key"])
-            for obj in response["Contents"]
+            for obj in response["Contents", []]
             if obj["Key"].endswith((".jpg", ".jpeg", ".png"))
         ]
 
