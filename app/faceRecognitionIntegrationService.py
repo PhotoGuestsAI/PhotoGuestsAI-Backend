@@ -4,9 +4,8 @@ import shutil
 import zipfile
 import requests
 from dotenv import load_dotenv
-from .s3_service import download_file_from_s3, upload_file_to_s3, upload_images_to_s3
+from .s3_service import download_file_from_s3, upload_file_to_s3, upload_images_to_s3, generate_presigned_url
 
-# Load environment variables from .env file
 load_dotenv()
 
 # Define a custom temp directory within the project structure
@@ -23,62 +22,63 @@ FACE_RECOGNITION_SERVICE_URL = os.getenv("FACE_RECOGNITION_MICRO_SERVICE_URL_DEV
 
 def create_and_upload_personalized_albums(event_prefix, phone_number):
     """
-    Process the album for an event and upload the personalized version to S3.
+    Process the album for an event and upload both the ZIP file and extracted images to S3.
 
     Args:
-        event_prefix (str): The prefix of the event (username/event_date/event_name/event_id/
+        event_prefix (str): The prefix of the event (username/event_date/event_name/event_id/).
         phone_number (str): Guest's phone number.
 
     Returns:
-        str: S3 path of the uploaded personalized album.
+        dict: Contains `photos` (list of image URLs) and `zip_url` (ZIP file URL).
     """
     temp_dir = tempfile.mkdtemp(dir=CUSTOM_TEMP_DIR)
 
     try:
-        base_path = f"{event_prefix.split("/")[0]}/{event_prefix.split("/")[1]}/{event_prefix.split("/")[2]}/{event_prefix.split("/")[3]}/"
+        # Construct S3 paths
+        base_path = f"{event_prefix.split('/')[0]}/{event_prefix.split('/')[1]}/{event_prefix.split('/')[2]}/{event_prefix.split('/')[3]}/"
         event_album_s3_path = f"{base_path}album/event_album.zip"
-        guest_photo_s3_path = f"{base_path}guest-submissions/"  # Construct full S3 path
+        guest_photo_s3_path = f"{base_path}guest-submissions/"
         personalized_album_s3_path = f"{base_path}personalized-albums/{phone_number}"
+        zip_s3_path = f"{personalized_album_s3_path}/{phone_number}.zip"
 
         print(f"Starting processing for album: {event_album_s3_path}")
 
         # Step 1: Download Event Album from S3
-        album_zip_path = os.path.join(temp_dir, 'event_album.zip')
-        print(f"S3 Path: {event_album_s3_path}")
-        print(f"Local Path: {album_zip_path}")
+        album_zip_path = os.path.join(temp_dir, "event_album.zip")
         print(f"Downloading event album from S3: {event_album_s3_path}")
         download_file_from_s3(BUCKET_NAME, event_album_s3_path, album_zip_path)
 
         # Step 2: Download Guest Photo from S3
-        guest_photo_path = os.path.join(temp_dir, 'guest_photo.jpg')
-        print(f"S3 Path: {event_album_s3_path}")
-        print(f"Local Path: {album_zip_path}")
+        guest_photo_path = os.path.join(temp_dir, "guest_photo.jpg")
         print(f"Downloading guest photo from S3: {guest_photo_s3_path}")
         download_file_from_s3(BUCKET_NAME, guest_photo_s3_path, guest_photo_path)
 
         # Step 3: Send Album and Guest Photo to Face Recognition Service
         print("Sending album and guest photo to face recognition service...")
-        personalized_images = send_to_face_recognition_service(album_zip_path, guest_photo_path, temp_dir)
+        personalized_images, personalized_album = send_to_face_recognition_service(album_zip_path, guest_photo_path,
+                                                                                   temp_dir)
 
-        # Step 4: Save and Upload Personalized Album to S3
-        # personalized_album_path = os.path.join(temp_dir, f'{phone_number}_personalized_album.zip')
-        # with open(personalized_album_path, 'wb') as output_file:
-        #     output_file.write(personalized_images)
-        #
-        # print(f"Uploading personalized album to S3: {personalized_album_s3_path}")
-        # upload_file_to_s3(
-        #     file=open(personalized_album_path, 'rb'),
-        #     file_name=personalized_album_s3_path,
-        #     content_type='application/zip'
-        # )
-        #
-        # print(f"Personalized album uploaded successfully to S3: {personalized_album_s3_path}")
-        # return personalized_album_s3_path
+        # Step 4: Save and Upload Personalized Album to S3 (ZIP file)
+        personalized_album_path = os.path.join(temp_dir, f"{phone_number}.zip")
+        with open(personalized_album_path, "wb") as output_file:
+            output_file.write(personalized_album)
 
+        print(f"Uploading personalized album ZIP to S3: {zip_s3_path}")
+        upload_file_to_s3(
+            file=open(personalized_album_path, "rb"),
+            file_name=zip_s3_path,  # ✅ Corrected file path
+            content_type="application/zip"
+        )
+
+        # Generate pre-signed URL for ZIP file
+        zip_url = generate_presigned_url(zip_s3_path)
+        print(f"ZIP uploaded successfully. URL: {zip_url}")
+
+        # Step 5: Upload extracted images and get their URLs
         uploaded_image_urls = upload_images_to_s3(personalized_images, personalized_album_s3_path)
-
         print(f"Uploaded {len(uploaded_image_urls)} images to S3")
-        return uploaded_image_urls
+
+        return {"photos": uploaded_image_urls, "zip_url": zip_url}
 
     except Exception as e:
         print(f"Error processing album: {e}")
@@ -124,7 +124,7 @@ def send_to_face_recognition_service(album_path, guest_photo_path, temp_dir):
             zip_ref.extractall(temp_dir)  # Extract all images to temp_dir
             extracted_image_paths = [os.path.join(temp_dir, file) for file in zip_ref.namelist()]
 
-        return extracted_image_paths  # Return list of image file paths
+        return extracted_image_paths, response.content  # Return list of image file paths + zip file
 
     except requests.exceptions.RequestException as req_error:
         print(f"Request to face recognition service failed: {req_error}")
