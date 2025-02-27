@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 from .auth import get_current_user
 from ..dynamodb_service import save_event, fetch_events_by_email, get_event_by_id
+# from ..keyspaces_service import save_event, fetch_events_by_email, get_event_by_id
 from ..enums.event_status import EventStatus
 from ..s3_service import create_event_folder, upload_file_to_s3, append_to_guest_list_in_s3
 
@@ -54,7 +55,7 @@ def get_user_events(current_user: str = Depends(get_current_user)):
 
 
 @router.post("/")
-def create_event(request: EventRequest):
+def create_event(request: EventRequest, current_user: str = Depends(get_current_user)):
     """
     Creates an event & saves details in DynamoDB.
 
