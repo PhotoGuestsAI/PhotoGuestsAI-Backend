@@ -16,7 +16,7 @@ CUSTOM_TEMP_DIR = os.path.join(BASE_DIR, "temp")
 os.makedirs(CUSTOM_TEMP_DIR, exist_ok=True)
 
 # AWS S3 Configuration
-BUCKET_NAME = os.getenv("EVENTS_BUCKET_NAME", "photo-guests-events")
+BUCKET_NAME = os.getenv("EVENTS_BUCKET_NAME", "photoguests-events")
 FACE_RECOGNITION_SERVICE_URL = os.getenv("FACE_RECOGNITION_MICRO_SERVICE_URL_DEV")
 
 

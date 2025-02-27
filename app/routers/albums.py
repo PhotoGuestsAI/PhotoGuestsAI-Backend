@@ -15,7 +15,7 @@ from ..faceRecognitionIntegrationService import create_and_upload_personalized_a
 from ..s3_service import upload_file_to_s3, download_file_as_bytes, get_guest_list_from_s3, s3_client, \
     generate_presigned_url
 
-BUCKET_NAME = "photo-guests-events"
+BUCKET_NAME = "photoguests-events"
 
 router = APIRouter()
 
@@ -150,7 +150,7 @@ async def get_personalized_album_photos(event_id: str, phone_number: str, guest_
 
     # List all images in the guest's folder
     try:
-        response = s3_client.list_objects_v2(Bucket="photo-guests-events", Prefix=s3_prefix)
+        response = s3_client.list_objects_v2(Bucket="photoguests-events", Prefix=s3_prefix)
 
         photos = [
             generate_presigned_url(obj["Key"])

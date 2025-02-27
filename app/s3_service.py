@@ -16,7 +16,7 @@ s3_client = boto3.client(
     config=Config(signature_version="s3v4")
 )
 
-BUCKET_NAME = "photo-guests-events"
+BUCKET_NAME = "photoguests-events"
 
 
 def create_event_folder(username, event_date, event_name, event_id):
@@ -71,7 +71,7 @@ def upload_images_to_s3(image_paths, base_s3_path):
             with open(image_path, "rb") as image_file:
                 s3_client.upload_fileobj(
                     image_file,
-                    "photo-guests-events",
+                    "photoguests-events",
                     s3_key,
                     ExtraArgs={
                         "ContentType": "image/jpeg",  # Ensure correct content type
@@ -104,7 +104,7 @@ def generate_presigned_url(s3_key):
     try:
         url = s3_client.generate_presigned_url(
             "get_object",
-            Params={"Bucket": "photo-guests-events", "Key": s3_key},
+            Params={"Bucket": "photoguests-events", "Key": s3_key},
             ExpiresIn=3600  # URL expires in 1 hour
         )
         return url

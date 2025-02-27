@@ -10,7 +10,7 @@ from ..dynamodb_service import get_event_by_id
 # from ..keyspaces_service import get_event_by_id
 from ..s3_service import get_guest_list_from_s3, upload_file_to_s3, append_to_guest_list_in_s3
 
-S3_BUCKET_NAME = "photo-guests-events"
+S3_BUCKET_NAME = "photoguests-events"
 s3_client = boto3.client("s3")
 
 WHATSAPP_API_URL = os.getenv("WHATSAPP_API_URL")
@@ -22,7 +22,7 @@ TWILIO_PHONE_NUMBER = os.getenv("TWILIO_PHONE_NUMBER", "+1234567890")
 
 twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
 
-BUCKET_NAME = "photo-guests-events"
+BUCKET_NAME = "photoguests-events"
 
 router = APIRouter()
 
