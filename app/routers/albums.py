@@ -9,6 +9,7 @@ from .auth import get_current_user
 from .events import generate_event_folder_path
 from .guests import validate_guest_by_uuid_and_phone_number
 from ..dynamodb_service import get_event_by_id, update_event_status
+# from ..keyspaces_service import get_event_by_id, update_event_status
 from ..enums.event_status import EventStatus
 from ..faceRecognitionIntegrationService import create_and_upload_personalized_albums
 from ..s3_service import upload_file_to_s3, download_file_as_bytes, get_guest_list_from_s3, s3_client, \
@@ -153,7 +154,7 @@ async def get_personalized_album_photos(event_id: str, phone_number: str, guest_
 
         photos = [
             generate_presigned_url(obj["Key"])
-            for obj in response["Contents", []]
+            for obj in response.get("Contents", [])
             if obj["Key"].endswith((".jpg", ".jpeg", ".png"))
         ]
 

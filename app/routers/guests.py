@@ -7,6 +7,7 @@ from twilio.rest import Client
 
 from .events import generate_event_folder_path
 from ..dynamodb_service import get_event_by_id
+# from ..keyspaces_service import get_event_by_id
 from ..s3_service import get_guest_list_from_s3, upload_file_to_s3, append_to_guest_list_in_s3
 
 S3_BUCKET_NAME = "photo-guests-events"
