@@ -4,8 +4,14 @@ services:
   backend:
     build: .
     container_name: fastapi-backend
-    ports:
-      - "8000:8000"
+    restart: always
     environment:
       - ENV=production
-    restart: always
+    ports:
+      - "8000:8000"
+    networks:
+      - backend-network
+
+networks:
+  backend-network:
+    driver: bridge

@@ -14,5 +14,5 @@ COPY . .
 # Expose FastAPI port
 EXPOSE 8000
 
-# ✅ Update Uvicorn command to point to `app.main`
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# ✅ Start FastAPI with better logging
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--log-level", "info"]
