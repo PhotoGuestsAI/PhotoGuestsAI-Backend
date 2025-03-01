@@ -49,48 +49,6 @@ def create_event_folder(username, event_date, event_name, event_id):
     return folder_name
 
 
-def upload_images_to_s3(image_paths, base_s3_path):
-    """
-    Upload multiple images to S3 instead of a ZIP file.
-
-    Args:
-        image_paths (list): List of local image file paths.
-        base_s3_path (str): The base path in S3 where images should be stored.
-
-    Returns:
-        list: List of S3 paths for the uploaded images.
-    """
-    uploaded_image_urls = []
-
-    for image_path in image_paths:
-        try:
-            image_filename = os.path.basename(image_path)
-            s3_key = f"{base_s3_path}/{image_filename}"
-
-            # Upload each image individually
-            with open(image_path, "rb") as image_file:
-                s3_client.upload_fileobj(
-                    image_file,
-                    "photoguests-events",
-                    s3_key,
-                    ExtraArgs={
-                        "ContentType": "image/jpeg",  # Ensure correct content type
-                        "ServerSideEncryption": "aws:kms"  # Optional encryption
-                    }
-                )
-
-            # Generate a pre-signed URL for accessing the uploaded image
-            presigned_url = generate_presigned_url(s3_key)
-            uploaded_image_urls.append(presigned_url)
-
-        except NoCredentialsError:
-            raise Exception("AWS Credentials not available")
-        except Exception as e:
-            raise Exception(f"Error uploading image {image_path}: {str(e)}")
-
-    return uploaded_image_urls
-
-
 def generate_presigned_url(s3_key):
     """
     Generate a pre-signed URL for accessing an S3 object.
@@ -140,28 +98,6 @@ def upload_file_to_s3(file, file_name, content_type):
         raise Exception("Credentials not available")
     except Exception as e:
         raise Exception(f"Error uploading file: {str(e)}")
-
-
-def download_file_from_s3(bucket_name, s3_key, local_path):
-    """
-    Download a file from S3 to a local path.
-
-    Args:
-        bucket_name (str): Name of the S3 bucket.
-        s3_key (str): The S3 key (path) of the file to download.
-        local_path (str): The full local path where the file will be saved.
-
-    Returns:
-        None
-    """
-    try:
-        with open(local_path, 'wb') as file:  # Ensure we write to the file directly
-            s3_client.download_fileobj(bucket_name, s3_key, file)
-        print(f"File downloaded successfully from S3: {s3_key} to {local_path}")
-    except NoCredentialsError:
-        raise Exception("Credentials not available")
-    except Exception as e:
-        raise Exception(f"Error downloading file from S3: {str(e)}")
 
 
 def append_to_guest_list_in_s3(file_key, guest_submission):
