@@ -14,6 +14,7 @@ app.add_middleware(
         "http://127.0.0.1:8000",  # React local dev
         "http://photoguests.com",  # Production frontend
         "https://photoguests.com",  # Production frontend
+        "https://54.220.155.26",  # Production frontend
     ],
     allow_credentials=True,
     allow_methods=["*"],  # Allow all HTTP methods (GET, POST, etc.)
