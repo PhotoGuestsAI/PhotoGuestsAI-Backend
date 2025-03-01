@@ -40,6 +40,20 @@ paypalrestsdk.configure({
     "client_secret": os.getenv("PAYPAL_CLIENT_SECRET")
 })
 
+tiered_pricing = [
+    (100, 1000, 120), (100, 2500, 240), (100, 5000, 440), (100, 10000, 840),
+    (250, 1000, 180), (250, 2500, 300), (250, 5000, 500), (250, 10000, 900),
+    (500, 1000, 280), (500, 2500, 400), (500, 5000, 600), (500, 10000, 1000),
+    (1000, 1000, 480), (1000, 2500, 600), (1000, 5000, 800), (1000, 10000, 1200)
+]
+
+
+def calculate_price(num_guests: int, num_images: int) -> int:
+    for guests, images, price in tiered_pricing:
+        if num_guests <= guests and num_images <= images:
+            return price
+    raise Exception(f"No pricing tier found for {num_guests} guests and {num_images} images.")
+
 
 class EventData(BaseModel):
     name: str
@@ -47,6 +61,9 @@ class EventData(BaseModel):
     phone: str
     username: str
     email: str
+    num_guests: int
+    num_images: int
+    price: int
     token: str = None
 
 
@@ -60,9 +77,19 @@ def clean_expired_tokens():
         del token_storage[key]
 
 
+@router.post("/calculate-price")
+async def get_price(num_guests: int, num_images: int):
+    """Endpoint to fetch the price based on guest and image selection."""
+    return {"price": calculate_price(num_guests, num_images)}
+
+
 @router.post("/create-payment")
 async def create_payment(event: EventData, user_email: str = Depends(get_current_user)):
     """Creates a PayPal payment and returns approval URL with authentication"""
+    calculated_price = calculate_price(event.num_guests, event.num_images)
+    if calculated_price != event.price:
+        raise HTTPException(status_code=400, detail="Price mismatch detected.")
+
     # Clean expired tokens first
     clean_expired_tokens()
 
@@ -85,9 +112,9 @@ async def create_payment(event: EventData, user_email: str = Depends(get_current
             "cancel_url": f"http://{BACKEND_DOMAIN}/payment/cancel"
         },
         "transactions": [{
-            "amount": {"total": "0.01", "currency": "USD"},
+            "amount": {"total": str(calculated_price), "currency": "ILS"},
             "description": f"Payment for event {event.name}",
-            "custom": f"{event.name}|{event.date}|{event.phone}|{event.username}|{event.email}|{reference_id}",
+            "custom": f"{event.name}|{event.date}|{event.phone}|{event.username}|{event.email}|{event.num_guests}|{event.num_images}|{event.price}|{reference_id}",
         }]
     })
 
@@ -145,7 +172,7 @@ async def payment_success(request: Request):
             raise HTTPException(status_code=400, detail="Missing event metadata")
 
         try:
-            name, date, phone, username, email, reference_id = event_metadata.split("|")
+            name, date, phone, username, email, num_guests, num_images, price, reference_id = event_metadata.split("|")
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid event metadata format")
 
@@ -157,7 +184,8 @@ async def payment_success(request: Request):
         # Clean up the token storage after successful retrieval
         del token_storage[reference_id]
 
-        event_data = {"name": name, "date": date, "phone": phone, "username": username, "email": email}
+        event_data = {"name": name, "date": date, "phone": phone, "username": username, "email": email,
+                      "num_guests": num_guests, "num_images": num_images, "price": price}
 
         # Call POST /events/ API
         async with httpx.AsyncClient(timeout=30.0) as client:

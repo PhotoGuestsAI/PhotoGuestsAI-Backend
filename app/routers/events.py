@@ -21,6 +21,9 @@ class EventRequest(BaseModel):
     phone: str
     email: str
     username: str
+    num_guests: int
+    num_images: int
+    price: int
 
 
 # Smaller Event Model (for listing events)
@@ -83,6 +86,9 @@ def create_event(request: EventRequest, current_user: str = Depends(get_current_
             "email": request.email,
             "phone": request.phone,
             "status": EventStatus.PENDING_UPLOAD,
+            "num_guests": request.num_guests,
+            "num_images": request.num_images,
+            "price": request.price
         }
 
         save_event(event_item)
