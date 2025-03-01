@@ -10,3 +10,4 @@ paypalrestsdk
 dotenv
 python-multipart
 twilio
+httpx
