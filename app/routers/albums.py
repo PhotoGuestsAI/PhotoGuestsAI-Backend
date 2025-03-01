@@ -1,7 +1,6 @@
 import io
-import os
 
-from fastapi import APIRouter, HTTPException, UploadFile, File, Depends, Header
+from fastapi import APIRouter, HTTPException, UploadFile, File, Depends
 from pydantic import BaseModel
 from starlette.responses import JSONResponse, StreamingResponse
 
@@ -9,10 +8,8 @@ from .auth import get_current_user
 from .events import generate_event_folder_path
 from .guests import validate_guest_by_uuid_and_phone_number
 from ..dynamodb_service import get_event_by_id, update_event_status
-# from ..keyspaces_service import get_event_by_id, update_event_status
 from ..enums.event_status import EventStatus
-from ..faceRecognitionIntegrationService import create_and_upload_personalized_albums
-from ..s3_service import upload_file_to_s3, download_file_as_bytes, get_guest_list_from_s3, s3_client, \
+from ..s3_service import upload_file_to_s3, download_file_as_bytes, s3_client, \
     generate_presigned_url
 
 BUCKET_NAME = "photoguests-events"
@@ -63,29 +60,6 @@ async def upload_event_album(event_id: str, album: UploadFile = File(...),
 class PersonalizedAlbumRequest(BaseModel):
     event_prefix: str
     phone_number: str
-
-
-@router.post('/personalized_albums')
-async def create_personalized_albums(request: PersonalizedAlbumRequest, authorization: str = Header(None)
-                                     ) -> dict:  # We run it manually
-    """
-    Should have a specific authorization token to run this API
-    """
-    # Validate Authorization Token
-    REQUIRED_TOKEN = os.getenv("TOKEN_FOR_EXPENSIVE_REQUESTS")
-    if authorization != REQUIRED_TOKEN:
-        raise HTTPException(status_code=401, detail="Unauthorized")
-
-    try:
-        result_path = create_and_upload_personalized_albums(
-            request.event_prefix,
-            phone_number=request.phone_number
-        )
-
-        return {"message": "Processing completed", "personalized_album_s3_path": result_path}
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/get-personalized-album/{event_id}/{phone_number}/{guest_uuid}", response_class=StreamingResponse)
