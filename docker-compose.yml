@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  backend-blue:
+    build: .
+    container_name: fastapi-backend-blue
+    restart: always
+    environment:
+      - ENV=production
+    ports:
+      - "8000:8000"
+    networks:
+      - backend-network
+
+  backend-green:
+    build: .
+    container_name: fastapi-backend-green
+    restart: always
+    environment:
+      - ENV=production
+    ports:
+      - "8001:8000"
+    networks:
+      - backend-network
+
+networks:
+  backend-network:
+    driver: bridge

@@ -1,28 +1,31 @@
 #!/bin/bash
 
-# Determine which backend version is active
-ACTIVE_BACKEND=$(docker ps --format "{{.Names}}" | grep fastapi-backend-blue || true)
+# Ensure script runs from the correct directory
+cd ~/PhotoGuestsAI-Backend
 
-if [ "$ACTIVE_BACKEND" == "fastapi-backend-blue" ]; then
+# Function to determine the active backend
+get_active_backend() {
+    if docker ps --format "{{.Names}}" | grep -q "fastapi-backend-blue"; then
+        echo "blue"
+    else
+        echo "green"
+    fi
+}
+
+ACTIVE_BACKEND=$(get_active_backend)
+
+if [ "$ACTIVE_BACKEND" == "blue" ]; then
     echo "Deploying to Green..."
     docker-compose up -d backend-green
     sleep 5  # Allow time for startup
 
-    # Update Nginx to point to the Green backend
-    sudo sed -i 's/fastapi-backend-blue/fastapi-backend-green/' /etc/nginx/conf.d/photoguests.conf
-    sudo systemctl restart nginx
-
-    # Stop the Blue backend
+    # Stop Blue backend
     docker-compose stop backend-blue
 else
     echo "Deploying to Blue..."
     docker-compose up -d backend-blue
-    sleep 5
+    sleep 5  # Allow time for startup
 
-    # Update Nginx to point to the Blue backend
-    sudo sed -i 's/fastapi-backend-green/fastapi-backend-blue/' /etc/nginx/conf.d/photoguests.conf
-    sudo systemctl restart nginx
-
-    # Stop the Green backend
+    # Stop Green backend
     docker-compose stop backend-green
 fi
