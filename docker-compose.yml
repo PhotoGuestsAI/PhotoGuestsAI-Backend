@@ -10,7 +10,7 @@ services:
     ports:
       - "8000:8000"
     networks:
-      - backend-network
+      - app-network
 
   backend-green:
     build: .
@@ -21,8 +21,8 @@ services:
     ports:
       - "8001:8000"
     networks:
-      - backend-network
+      - app-network
 
 networks:
-  backend-network:
-    driver: bridge
+  app-network:
+    external: true
