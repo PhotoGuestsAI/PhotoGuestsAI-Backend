@@ -1,4 +1,5 @@
 import io
+import zipfile
 
 from fastapi import APIRouter, HTTPException, UploadFile, File, Depends
 from pydantic import BaseModel
@@ -41,6 +42,23 @@ async def upload_event_album(event_id: str, album: UploadFile = File(...),
                 status_code=403,
                 detail="You are not authorized to access this event"
             )
+
+        max_images_allowed = event.get("num_images", 10000)
+
+        # Read ZIP file and count images
+        zip_file = await album.read()
+        with zipfile.ZipFile(io.BytesIO(zip_file), "r") as zip_ref:
+            # Exclude unnecessary files and folders
+            ignored_files = ["__MACOSX/", ".DS_Store", "Thumbs.db", "desktop.ini"]
+            image_files = [file for file in zip_ref.namelist()
+                           if not any(file.startswith(ignore) for ignore in ignored_files)
+                           and file.lower().endswith(('.jpg', '.jpeg', '.png'))]
+
+            if len(image_files) > max_images_allowed:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Uploaded ZIP contains {len(image_files)} images, exceeding the allowed limit of {max_images_allowed}."
+                )
 
         event_folder_path = generate_event_folder_path(event)
         s3_key = f"{event_folder_path}album/{album.filename}"
