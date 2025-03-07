@@ -1,15 +1,14 @@
 import io
+import os
 import zipfile
 
 from fastapi import APIRouter, HTTPException, UploadFile, File, Depends
-from pydantic import BaseModel
 from starlette.responses import JSONResponse, StreamingResponse
 
 from .auth import get_current_user
 from .events import generate_event_folder_path
 from .guests import validate_guest_by_uuid_and_phone_number
 from ..dynamodb_service import get_event_by_id, update_event_status
-from ..enums.event_status import EventStatus
 from ..s3_service import upload_file_to_s3, download_file_as_bytes, s3_client, \
     generate_presigned_url
 
@@ -22,30 +21,29 @@ router = APIRouter()
 async def upload_event_album(event_id: str, album: UploadFile = File(...),
                              current_user: str = Depends(get_current_user)):
     """
-    Handle the upload of album ZIP file and save it to S3 under the event's folder.
+    Extracts images from a ZIP file, renames them sequentially, and uploads them to S3 one-by-one.
 
     Args:
-        current_user:
-        event_id (str): The event ID for the album.
-        album (UploadFile): The album zip file.
+        event_id (str): The event ID.
+        album (UploadFile): The uploaded ZIP file.
+        current_user (str): The authenticated user email.
 
     Returns:
-        dict: Success message if the file was uploaded successfully.
+        dict: Success message if all images are uploaded successfully.
     """
     try:
         event = get_event_by_id(event_id)
         if not event:
-            raise HTTPException(404, "Event not found")
+            raise HTTPException(status_code=404, detail="Event not found")
 
         if event["email"] != current_user:
-            raise HTTPException(
-                status_code=403,
-                detail="You are not authorized to access this event"
-            )
+            raise HTTPException(status_code=403, detail="You are not authorized to upload to this event")
 
-        max_images_allowed = event.get("num_images", 10000)
+        # Block re-upload if an album is already uploaded
+        if event.get("status") == "אלבום הועלה":
+            raise HTTPException(status_code=400, detail="An album has already been uploaded for this event.")
 
-        # Read ZIP file and count images
+        # Read ZIP file
         zip_file = await album.read()
         with zipfile.ZipFile(io.BytesIO(zip_file), "r") as zip_ref:
             # Exclude unnecessary files and folders
@@ -54,30 +52,49 @@ async def upload_event_album(event_id: str, album: UploadFile = File(...),
                            if not any(file.startswith(ignore) for ignore in ignored_files)
                            and file.lower().endswith(('.jpg', '.jpeg', '.png'))]
 
+            if not image_files:
+                raise HTTPException(status_code=400, detail="No valid images found in the ZIP file.")
+
+            max_images_allowed = event.get("num_images", 10000)
             if len(image_files) > max_images_allowed:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Uploaded ZIP contains {len(image_files)} images, exceeding the allowed limit of {max_images_allowed}."
-                )
+                raise HTTPException(status_code=400,
+                                    detail=f"Uploaded ZIP contains {len(image_files)} images, exceeding the allowed limit of {max_images_allowed}.")
 
-        event_folder_path = generate_event_folder_path(event)
-        s3_key = f"{event_folder_path}album/{album.filename}"
+            event_folder_path = generate_event_folder_path(event)
+            uploaded_files = []
 
-        upload_success = upload_file_to_s3(album.file, s3_key, album.content_type)
+            # Sequential upload (cheapest approach)
+            for index, original_filename in enumerate(image_files, start=1):
+                file_ext = os.path.splitext(original_filename)[1]  # Get file extension (.jpg, .png, etc.)
+                new_filename = f"{index}{file_ext}"
 
-        if upload_success:
-            update_event_status(event_id, EventStatus.ALBUM_UPLOADED)
-            return JSONResponse(content={"message": "Album uploaded successfully!"}, status_code=200)
-        else:
-            raise HTTPException(status_code=500, detail="Failed to upload the album")
+                # Read image bytes
+                with zip_ref.open(original_filename) as image_file:
+                    image_data = io.BytesIO(image_file.read())  # Convert to BytesIO object for S3 upload
+
+                s3_key = f"{event_folder_path}album/{new_filename}"
+                upload_success = upload_file_to_s3(image_data, s3_key, content_type=f"image/{file_ext.lstrip('.')}")
+
+                if upload_success:
+                    uploaded_files.append(new_filename)
+                else:
+                    raise HTTPException(status_code=500, detail=f"Failed to upload {new_filename}")
+
+        # Mark event as having an uploaded album
+        update_event_status(event_id, "אלבום הועלה")
+
+        return JSONResponse(
+            content={"message": f"Album uploaded successfully! {len(uploaded_files)} images processed."},
+            status_code=200)
+
+    except zipfile.BadZipFile:
+        raise HTTPException(status_code=400, detail="Invalid ZIP file format.")
+
+    except HTTPException:
+        raise  # Keep the original FastAPI exceptions
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error uploading file: {str(e)}")
-
-
-class PersonalizedAlbumRequest(BaseModel):
-    event_prefix: str
-    phone_number: str
+        raise HTTPException(status_code=500, detail=f"Error processing album: {str(e)}")
 
 
 @router.get("/get-personalized-album/{event_id}/{phone_number}/{guest_uuid}", response_class=StreamingResponse)
