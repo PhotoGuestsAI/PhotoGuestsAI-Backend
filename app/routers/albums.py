@@ -1,4 +1,5 @@
 import io
+import json
 import os
 import zipfile
 
@@ -117,7 +118,7 @@ async def get_personalized_album(event_id: str, phone_number: str, guest_uuid: s
     await validate_guest_by_uuid_and_phone_number(event_folder_path, guest_uuid, phone_number)
 
     album_filename = f"{phone_number}.zip"
-    s3_key = f"{event_folder_path}personalized-albums/{phone_number}/{album_filename}"
+    s3_key = f"{event_folder_path}personalized-mapping/{phone_number}/{album_filename}"
 
     try:
         s3_client.head_object(Bucket=BUCKET_NAME, Key=s3_key)
@@ -149,25 +150,32 @@ async def get_personalized_album_photos(event_id: str, phone_number: str, guest_
     Returns:
         dict: A JSON response containing an array of image URLs.
     """
-
-    event = get_event_by_id(event_id)
-    event_folder_path = generate_event_folder_path(event)
-
-    await validate_guest_by_uuid_and_phone_number(event_folder_path, guest_uuid, phone_number)
-
-    s3_prefix = f"{event_folder_path}personalized-albums/{phone_number}/"
-
-    # List all images in the guest's folder
     try:
-        response = s3_client.list_objects_v2(Bucket="photoguests-events", Prefix=s3_prefix)
+        event = get_event_by_id(event_id)
+        if not event:
+            raise HTTPException(status_code=404, detail="Event not found")
 
-        photos = [
-            generate_presigned_url(obj["Key"])
-            for obj in response.get("Contents", [])
-            if obj["Key"].endswith((".jpg", ".jpeg", ".png"))
-        ]
+        event_folder_path = generate_event_folder_path(event)
 
-        return {"photos": photos}
+        await validate_guest_by_uuid_and_phone_number(event_folder_path, guest_uuid, phone_number)
+
+        matches_json_path = f"{event_folder_path}personalized-mapping/{phone_number}/matches.json"
+
+        try:
+            response = s3_client.get_object(Bucket="photoguests-events", Key=matches_json_path)
+            matches_data = json.loads(response["Body"].read().decode("utf-8"))
+        except s3_client.exceptions.NoSuchKey:
+            raise HTTPException(status_code=404, detail="No personalized album found for this guest.")
+
+        # ✅ Extract matching photo filenames
+        matching_photos = matches_data.get("matching_photos", [])
+        if not matching_photos:
+            return {"photos": []}  # No matching photos for this guest
+
+        album_folder_path = f"{event_folder_path}album/"
+        photo_urls = [generate_presigned_url(f"{album_folder_path}{photo}") for photo in matching_photos]
+
+        return {"photos": photo_urls}
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error retrieving photos: {str(e)}")
